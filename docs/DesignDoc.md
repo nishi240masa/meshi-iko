@@ -116,13 +116,12 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 
 **主要なデータ（エンティティ）**
 
-元の案（User / date / today / count / statistics）は、集計値を別テーブルに持つと回答変更のたびに更新漏れが起きやすい。下の3テーブルにまとめ、人数は `answers` から都度集計する案を提案します。
 
 | テーブル | 主な項目 | 関連 |
 | --- | --- | --- |
 | users | id（自動採番）, name（一意）, token, created\_at | answers を複数持つ |
 | polls | date（主キー）, status（open / closed）, opened\_at, closed\_at | その日の answers を持つ |
-| answers | user\_id, date, status（行ける / 行けない）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date) | users と polls に属する |
+| answers | user\_id, date, status（未解答/行ける / 行けない）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date) | users と polls に属する |
 
 **主要なAPI / 画面**
 
@@ -141,7 +140,7 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 
 ## 8. 開発体制・スケジュール
 
-**役割分担**（4人。担当領域ごとに並行して進められる分け方の例。名前と時間を記入）
+**役割分担**（
 
 | メンバー | 担当領域 | 主な機能 | 9/19〜9/23 に使える時間 |
 | --- | --- | --- | --- |
@@ -153,8 +152,6 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 **開発ルール**
 
 - ブランチ運用：main＋機能ごとのブランチ。PRは相手が軽く見てからマージ（急ぎのときは事後レビュー可）
-- 定例：期限までは毎晩15分、その日の進捗と翌日の作業を確認
-- 連絡手段：Slack（結果通知と同じワークスペース）
 - タスク管理：GitHub Issues に機能ID（F1〜F8）をつけて起票
 
 **マイルストーン**
