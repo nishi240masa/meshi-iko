@@ -107,7 +107,7 @@ paths:
         再びログインすると新しいトークンが発行される．
       operationId: logoutUser
       security:
-        - DeviceToken: []
+        - SessionToken: []
       responses:
         '204':
           description: ログアウト成功．レスポンスボディはなし．
@@ -123,7 +123,7 @@ paths:
       description: トークンで認証し，ログイン中のユーザー情報を返す．
       operationId: getMe
       security:
-        - DeviceToken: []
+        - SessionToken: []
       responses:
         '200':
           description: 取得成功
@@ -142,7 +142,7 @@ paths:
       summary: ユーザー取得
       operationId: getUser
       security:
-        - DeviceToken: []
+        - SessionToken: []
       parameters:
         - name: userId
           in: path
@@ -175,7 +175,7 @@ paths:
         時間帯ごとの人数は10人規模なのでクライアント側で集計する．
       operationId: getAnswers
       security:
-        - DeviceToken: []
+        - SessionToken: []
       parameters:
         - name: date
           in: query
@@ -212,7 +212,7 @@ paths:
         どちらもリクエストでは指定しない．
       operationId: putMyAnswer
       security:
-        - DeviceToken: []
+        - SessionToken: []
       requestBody:
         required: true
         content:
@@ -244,7 +244,7 @@ paths:
         クライアントは回答フォームを出すかどうかの判定に使う．
       operationId: getPoll
       security:
-        - DeviceToken: []
+        - SessionToken: []
       parameters:
         - $ref: '#/components/parameters/PollDate'
       responses:
@@ -300,7 +300,7 @@ paths:
         同じトークンを再送しても重複登録しない．
       operationId: createDeviceToken
       security:
-        - DeviceToken: []
+        - SessionToken: []
       requestBody:
         required: true
         content:
@@ -349,7 +349,7 @@ paths:
 
 components:
   securitySchemes:
-    DeviceToken:
+    SessionToken:
       type: http
       scheme: bearer
       description: |
@@ -361,7 +361,7 @@ components:
       name: X-Admin-Token
       description: |
         管理用トークン．Cronなどサーバ間の呼び出しでのみ使う．
-        DeviceTokenとは別物なので，ヘッダも分けて取り違えを防ぐ．
+        SessionTokenとは別物なので，ヘッダも分けて取り違えを防ぐ．
 
   parameters:
     PollDate:
