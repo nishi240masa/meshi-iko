@@ -1,0 +1,644 @@
+openapi: 3.0.3
+
+info:
+  title: メシイコ API
+  description: |
+    友達同士で「今日ご飯に行けるか」を共有するサービス，メシイコのバックエンドAPI．
+
+    このファイルがAPIの正（Single Source of Truth）です．
+    エンドポイントや型を増やすときは，まずこのファイルを編集し，`make generate` で
+    `internal/generated/openapi` を再生成してから，ハンドラを実装してください．
+
+    日付・時刻はすべて日本時間（JST）で扱う．「今日」がどの日かはサーバが決めるので，
+    クライアントは端末の時計に依存しない．
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: ローカル開発環境
+
+tags:
+  - name: system
+    description: 死活監視など，運用向けのエンドポイント
+  - name: users
+    description: ユーザー登録・ログイン・取得
+  - name: answers
+    description: 当日の回答の登録・取得
+  - name: polls
+    description: 日ごとのアンケートの配信・締め切り
+  - name: devices
+    description: プッシュ通知の宛先登録
+  - name: admin
+    description: Cronなどサーバ間の呼び出し専用
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: death/aliveチェック
+      description: プロセスとDB接続が生きているかを返す．
+      operationId: getHealth
+      responses:
+        '200':
+          description: 正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /users:
+    post:
+      tags: [users]
+      summary: ユーザー登録
+      description: 好きなuserID（name）を登録し，以後の認証に使うトークンを返す．
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/login:
+    post:
+      tags: [users]
+      summary: ユーザーログイン
+      description: 登録済みのユーザー名を指定してログインし，トークンを返す．
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/logout:
+    post:
+      tags: [users]
+      summary: ユーザーログアウト
+      description: |
+        いま使っているトークンを無効化する．
+        再びログインすると新しいトークンが発行される．
+      operationId: logoutUser
+      security:
+        - DeviceToken: []
+      responses:
+        '204':
+          description: ログアウト成功．レスポンスボディはなし．
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/me:
+    get:
+      tags: [users]
+      summary: ログインユーザー取得
+      description: トークンで認証し，ログイン中のユーザー情報を返す．
+      operationId: getMe
+      security:
+        - DeviceToken: []
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{userId}:
+    get:
+      tags: [users]
+      summary: ユーザー取得
+      operationId: getUser
+      security:
+        - DeviceToken: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: 登録時に自動採番されたID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /answers:
+    get:
+      tags: [answers]
+      summary: 回答一覧取得
+      description: |
+        指定日の全員の回答を返す．結果画面（F8）はこの1回の呼び出しだけで描ける．
+        時間帯ごとの人数は10人規模なのでクライアント側で集計する．
+      operationId: getAnswers
+      security:
+        - DeviceToken: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: 取得対象の日付（JST）．省略時はJSTの今日．
+          schema:
+            type: string
+            format: date
+            example: 2026-09-20
+      responses:
+        '200':
+          description: 取得成功．その日の回答が無ければ空配列を返す．
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Answers'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /answers/me:
+    put:
+      tags: [answers]
+      summary: 自分の当日回答を登録・更新
+      description: |
+        当日（JST）の自分の回答を登録する．すでに回答済みなら上書きする．
+        何回送っても結果が同じになる冪等な操作なので，ウィジェットや
+        ショートカットからの二重送信も安全に扱える．
+
+        対象日はサーバがJSTで決め，回答者はトークンから特定する．
+        どちらもリクエストでは指定しない．
+      operationId: putMyAnswer
+      security:
+        - DeviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutMyAnswerRequest'
+      responses:
+        '200':
+          description: 登録・更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Answer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /polls/{date}:
+    get:
+      tags: [polls]
+      summary: アンケート状態取得
+      description: |
+        指定日のアンケートが「配信前」「受付中」「締切」のどれかを返す．
+        クライアントは回答フォームを出すかどうかの判定に使う．
+      operationId: getPoll
+      security:
+        - DeviceToken: []
+      parameters:
+        - $ref: '#/components/parameters/PollDate'
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [polls]
+      summary: アンケート状態の更新（管理者用）
+      description: |
+        Cronから呼び出し，16:00の配信（open）と18:00の締め切り（closed）を切り替える．
+        同じ状態を二重に送っても結果が変わらないよう冪等にする．
+      operationId: updatePoll
+      security:
+        - AdminToken: []
+      parameters:
+        - $ref: '#/components/parameters/PollDate'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePollRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /devices:
+    post:
+      tags: [devices]
+      summary: デバイストークン登録
+      description: |
+        プッシュ通知（FCM）の宛先を登録する．
+        同じトークンを再送しても重複登録しない．
+      operationId: createDeviceToken
+      security:
+        - DeviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeviceTokenRequest'
+      responses:
+        '201':
+          description: 登録成功
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/notifications:
+    post:
+      tags: [admin]
+      summary: プッシュ通知送信
+      description: |
+        管理者用．プッシュ通知を送信する．
+        Cronなどサーバ間の呼び出しを想定し，ユーザートークンとは別の管理用トークンで認証する．
+      operationId: sendNotification
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendNotificationRequest'
+      responses:
+        '200':
+          description: 送信成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    DeviceToken:
+      type: http
+      scheme: bearer
+      description: |
+        セッショントークン．ユーザー登録・ログイン時に返却される．
+        `Authorization: Bearer <token>` 形式で送る．
+    AdminToken:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+      description: |
+        管理用トークン．Cronなどサーバ間の呼び出しでのみ使う．
+        DeviceTokenとは別物なので，ヘッダも分けて取り違えを防ぐ．
+
+  parameters:
+    PollDate:
+      name: date
+      in: path
+      required: true
+      description: 対象の日付（JST）
+      schema:
+        type: string
+        format: date
+        example: 2026-09-20
+
+  responses:
+    BadRequest:
+      description: リクエストが不正
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 認証に失敗した（トークンが無い，または不正）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 対象が存在しない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: |
+        いまの状態では実行できない（名前がすでに使われている，
+        アンケートが締め切られている，など）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: サーバ内部エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          example: ok
+
+    User:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          description: ユーザーが決める一意の表示名
+          example: nishi
+        createdAt:
+          type: string
+          format: date-time
+
+    AnswerStatus:
+      type: string
+      description: |
+        回答の状態．
+        undecided=未定 / available=行ける / unavailable=行けない
+      enum: [undecided, available, unavailable]
+      example: available
+
+    TimeSlots:
+      type: array
+      description: |
+        行ける時間帯．30分刻みの開始時刻（JST）を並べる．
+        status=available のときのみ意味を持ち，それ以外では空配列．
+      items:
+        type: string
+        pattern: '^([01][0-9]|2[0-3]):(00|30)$'
+      example: ["18:00", "18:30", "19:00"]
+
+    Answer:
+      type: object
+      required: [date, userId, userName, status, timeSlots]
+      properties:
+        date:
+          type: string
+          format: date
+          example: 2026-09-20
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        userName:
+          type: string
+          description: |
+            回答者の表示名．結果一覧を描くたびに GET /users/{userId} を
+            人数分叩かずに済むよう，ここに同梱する．
+          example: nishi
+        status:
+          $ref: '#/components/schemas/AnswerStatus'
+        timeSlots:
+          $ref: '#/components/schemas/TimeSlots'
+
+    Answers:
+      type: object
+      required: [date, answers]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 実際に集計した日付（JST）．dateを省略した場合の確認に使える．
+          example: 2026-09-20
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Answer'
+
+    PollStatus:
+      type: string
+      description: |
+        アンケートの状態．
+        scheduled=配信前 / open=受付中 / closed=締切．
+        16:00に scheduled→open，18:00に open→closed をCronが切り替える．
+      enum: [scheduled, open, closed]
+      example: open
+
+    Poll:
+      type: object
+      required: [date, status]
+      properties:
+        date:
+          type: string
+          format: date
+          example: 2026-09-20
+        status:
+          $ref: '#/components/schemas/PollStatus'
+        openedAt:
+          type: string
+          format: date-time
+          description: 配信した時刻．配信前はnull．
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          description: 締め切った時刻．締切前はnull．
+          nullable: true
+
+    UpdatePollRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/PollStatus'
+
+    CreateUserRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32
+          example: nishi
+
+    CreateUserResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: |
+            セッショントークン．端末に保存し，以後のリクエストで
+            `Authorization: Bearer <token>` として送る．
+          example: 9f2c1d0b8a7e6f5d4c3b2a1908172635
+
+    LoginRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32
+          example: nishi
+
+    LoginResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: |
+            新しく発行されたセッショントークン．
+            ログインのたびに再発行され，以前のトークンは無効になる．
+          example: 9f2c1d0b8a7e6f5d4c3b2a1908172635
+
+    PutMyAnswerRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/AnswerStatus'
+        timeSlots:
+          $ref: '#/components/schemas/TimeSlots'
+
+    CreateDeviceTokenRequest:
+      type: object
+      required: [deviceToken, osType]
+      properties:
+        deviceToken:
+          type: string
+          description: FCMが発行する登録トークン．150文字を超えることがある．
+          example: fMEQFN0zTO2W3kq7Jm1sVx:APA91bH8xKq2pZ0vL9nR4tYcB7dW1mJ5sQ3eA6gU
+        osType:
+          type: string
+          description: OSの種類．iOSかAndroidを指定する．
+          enum: [iOS, Android]
+          example: iOS
+
+    SendNotificationRequest:
+      type: object
+      required: [title, body]
+      properties:
+        title:
+          type: string
+          example: 今日のごはん，行ける？
+        body:
+          type: string
+          example: 18:00までに回答してね
+        target:
+          type: string
+          description: |
+            送信先．
+            all=全ユーザー / unanswered=対象日にまだ回答していないユーザーだけ（F5のリマインド用）
+          enum: [all, unanswered]
+          default: all
+          example: unanswered
+        date:
+          type: string
+          format: date
+          description: |
+            target=unanswered のときに「未回答かどうか」を判定する日付（JST）．
+            省略時はJSTの今日．
+          example: 2026-09-20
+
+    SendNotificationResponse:
+      type: object
+      required: [sentCount]
+      properties:
+        sentCount:
+          type: integer
+          description: 実際に送信した宛先の数．リマインドが誰にも届かなかった場合の切り分けに使う．
+          example: 3
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: クライアントが分岐に使う機械可読なコード
+          example: not_found
+        message:
+          type: string
+          description: 人間向けの説明
+          example: user not found
