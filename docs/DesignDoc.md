@@ -103,7 +103,7 @@
 
 ```mermaid
 flowchart LR
-  A["Flutter アプリ"] -->|API| B["Backend API"]
+  A["Tauri アプリ"] -->|API| B["Backend API"]
   W["ウィジェット"] -->|API| B
   B --> C[("Cloudflare D1")]
   T["Cron Triggers<br/>16:00 / 17:30 / 18:00"] --> B
@@ -219,7 +219,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 
 | 日付 | 決定内容 | 理由 | 決めた人 |
 | --- | --- | --- | --- |
-| 2026-09-19 | フロントエンドはFlutter | iOS / Android 両対応で学習コストが低い |  |
+| 2026-09-19 | フロントエンドはTauri | iOS / Android 両対応で学習コストが低い |  |
 | 2026-09-19 | DBはCloudflare D1 | 小規模で無料 |  |
 | 2026-09-19 | 認証はメール・パスワードを使わず自前のuserIDのみ | 友人内で手軽に使うため |  |
 | 2026-09-19 | ストア公開・多言語対応はしない | 利用者が友人10人程度のため |  |
