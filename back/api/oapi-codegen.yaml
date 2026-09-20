@@ -1,0 +1,11 @@
+# oapi-codegen の設定．`make generate` から使われる
+# 生成物（internal/generated/openapi）は手動で編集しないこと
+package: openapi
+output: internal/generated/openapi/api.gen.go
+generate:
+  models: true          
+  gin-server: true      
+  strict-server: true   
+  embedded-spec: false  
+output-options:
+  nullable-type: true
