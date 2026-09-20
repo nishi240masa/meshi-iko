@@ -1,0 +1,57 @@
+name: backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# 同じブランチで新しいpushがあったら古い実行は打ち切る．
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: back
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          # go.mod のバージョンを唯一の正とする．
+          go-version-file: back/go.mod
+          cache-dependency-path: back/go.sum
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+      # プリビルドのバイナリは go.mod が要求するGoより古いことがあり，
+      # その場合 golangci-lint が起動時に落ちる．CIのGoでビルドして揃える．
+      - name: golangci-lint を用意
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+
+      - name: lint
+        run: $(go env GOPATH)/bin/golangci-lint run ./...
+
+      - name: test
+        run: go test ./... -count=1
+
+      - name: build
+        run: go build ./...
+
+      # openapi.yaml を変えて make generate を忘れると，仕様と実装が静かにずれる．
+      # 生成しなおして差分が出たら落とす．
+      # git diff は未追跡ファイルを見ないので，生成前後のファイルを直接比べる．
+      - name: 生成物が openapi.yaml と一致しているか
+        run: |
+          cp internal/generated/openapi/api.gen.go "${RUNNER_TEMP}/api.gen.go.before"
+          go tool oapi-codegen --config api/oapi-codegen.yaml api/openapi.yaml
+          diff -u "${RUNNER_TEMP}/api.gen.go.before" internal/generated/openapi/api.gen.go \
+            || (echo "::error::openapi.yaml と生成物がずれています． make generate を実行してコミットしてください" && exit 1)
