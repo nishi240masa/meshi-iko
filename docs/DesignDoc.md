@@ -121,7 +121,7 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 | --- | --- | --- |
 | users | id（自動採番）, name（一意）, token, created\_at | answers を複数持つ |
 | polls | date（主キー）, status（open / closed）, opened\_at, closed\_at | その日の answers を持つ |
-| answers | user\_id, date, status（未解答/行ける / 行けない）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date) | users と polls に属する |
+| answers | user\_id, date, status（行ける / 行けない）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date)。未解答はレコード未作成で表現する | users と polls に属する |
 
 **主要なAPI / 画面**
 
@@ -129,7 +129,7 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 | --- | --- | --- |
 | API | POST /users | userIDを登録し、端末トークンを返す |
 | API | GET /polls/today | 当日のアンケート状態と自分の回答を取得 |
-| API | PUT /polls/today/answer | 当日の回答（行ける/行けない、時間帯）を登録・更新 |
+| API | PUT /polls/today/answer | 当日の回答（行ける/行けない、時間帯）を登録・更新（初回はanswersを作成） |
 | API | GET /polls/today/summary | 行ける人の一覧と時間帯ごとの人数 |
 | API | POST /devices | FCMの通知トークンを登録 |
 | 内部処理 | Cron：配信 / リマインド / 締め切り | polls の作成・更新、通知、Slack投稿 |
