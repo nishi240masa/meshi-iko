@@ -20,6 +20,7 @@ export function Greet() {
       >
         <input
           id="greet-input"
+          aria-label="Name"
           onChange={(e) => setName(e.currentTarget.value)}
           placeholder="Enter a name..."
         />
