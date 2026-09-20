@@ -25,6 +25,7 @@ front/
 │  │  └─ lib.rs                 # Tauri Builder、command 登録
 │  │
 │  ├─ native/                   # OS依存のRust実装以外の資産(外部ライブラリやら)
+│  ├─ gen/android/              # `tauri android init` で生成されるAndroidプロジェクト
 │  ├─ capabilities/             # 権限設定
 │  │  └─ default.json
 │  ├─ icons/                    # アプリアイコン
@@ -36,6 +37,8 @@ front/
 ├─ vite.config.ts               # Vite 設定
 └─ tsconfig.json
 ```
+
+Android APK をビルドする場合は、`src-tauri/gen/android` が存在する状態（`tauri android init` 実行済み）で進めてください。
 
 ## システムアーキテクチャ
 
