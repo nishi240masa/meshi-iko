@@ -23,7 +23,7 @@
 
 - ユーザー登録・ログイン（一意のuserID（好きな名前）と自動生成のindex番号）
 - 毎日「行ける」「行けない」を簡単に回答できるアンケート機能
-- 行ける人は30分ごとの行ける時間帯を選択できる機能
+- 行ける人は30分ごとの開いてる時間帯を選択できる機能（例：17:00〜23:00）
 - iOS / Android 両方対応
 - ウィジェットでアンケート回答・結果確認
 - 未回答のユーザーへのリマインド通知
@@ -116,13 +116,12 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 
 **主要なデータ（エンティティ）**
 
-元の案（User / date / today / count / statistics）は、集計値を別テーブルに持つと回答変更のたびに更新漏れが起きやすい。下の3テーブルにまとめ、人数は `answers` から都度集計する案を提案します。
 
 | テーブル | 主な項目 | 関連 |
 | --- | --- | --- |
 | users | id（自動採番）, name（一意）, token, created\_at | answers を複数持つ |
 | polls | date（主キー）, status（open / closed）, opened\_at, closed\_at | その日の answers を持つ |
-| answers | user\_id, date, status（行ける / 行けない）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date) | users と polls に属する |
+| answers | user\_id, date, status（行ける / 行けない）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date)。未解答はレコード未作成で表現する | users と polls に属する |
 
 **主要なAPI / 画面**
 
@@ -130,7 +129,7 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 | --- | --- | --- |
 | API | POST /users | userIDを登録し、端末トークンを返す |
 | API | GET /polls/today | 当日のアンケート状態と自分の回答を取得 |
-| API | PUT /polls/today/answer | 当日の回答（行ける/行けない、時間帯）を登録・更新 |
+| API | PUT /polls/today/answer | 当日の回答（行ける/行けない、時間帯）を登録・更新（初回はanswersを作成） |
 | API | GET /polls/today/summary | 行ける人の一覧と時間帯ごとの人数 |
 | API | POST /devices | FCMの通知トークンを登録 |
 | 内部処理 | Cron：配信 / リマインド / 締め切り | polls の作成・更新、通知、Slack投稿 |
@@ -141,20 +140,17 @@ CronがAPIを起動し、配信・リマインド・締め切りのたびにSlac
 
 ## 8. 開発体制・スケジュール
 
-**役割分担**（4人。担当領域ごとに並行して進められる分け方の例。名前と時間を記入）
+**役割分担**（3人体制）
 
 | メンバー | 担当領域 | 主な機能 | 9/19〜9/23 に使える時間 |
 | --- | --- | --- | --- |
-|  | バックエンドAPI・DB設計 | F1, F2, F3, F8 のAPI |  |
-|  | 定時処理・外部連携（Cron、Slack、プッシュ通知送信） | F5, F6, F7 |  |
-|  | Flutterアプリ（登録・回答・結果画面） | F1, F2, F3, F8 の画面 |  |
-|  | ウィジェット（Swift / Kotlin）・実機への配布 | F4、iPhone配布方法の調査 |  |
+|  | バックエンドAPI・DB設計・定時処理（Cron） | F1, F2, F3, F8 のAPI、F6 |  |
+|  | Flutterアプリ（登録・回答・結果画面）・配布（PWA / APK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
+|  | 外部連携（Slack、プッシュ通知）・ウィジェット（Kotlin） | F7, F5, F4（この順に着手） |  |
 
 **開発ルール**
 
 - ブランチ運用：main＋機能ごとのブランチ。PRは相手が軽く見てからマージ（急ぎのときは事後レビュー可）
-- 定例：期限までは毎晩15分、その日の進捗と翌日の作業を確認
-- 連絡手段：Slack（結果通知と同じワークスペース）
 - タスク管理：GitHub Issues に機能ID（F1〜F8）をつけて起票
 
 **マイルストーン**
