@@ -23,7 +23,7 @@ func (h *AnswerHandler) GetAnswers(_ context.Context, request openapi.GetAnswers
 
 	return openapi.GetAnswers200JSONResponse{
 		Date:    date,
-		Answers: mockAnswers(date),
+		Answers: mockAnswers(),
 	}, nil
 }
 
@@ -42,11 +42,13 @@ func (h *AnswerHandler) PutMyAnswer(_ context.Context, request openapi.PutMyAnsw
 	}
 
 	return openapi.PutMyAnswer200JSONResponse{
-		Date:      today(),
-		UserId:    mockUsers[0].Id,
-		UserName:  mockUsers[0].Name,
-		Status:    request.Body.Status,
-		TimeSlots: slots,
+		Date: today(),
+		Answer: openapi.Answer{
+			UserId:    mockUsers[0].Id,
+			UserName:  mockUsers[0].Name,
+			Status:    request.Body.Status,
+			TimeSlots: slots,
+		},
 	}, nil
 }
 

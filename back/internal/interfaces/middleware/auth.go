@@ -17,11 +17,12 @@ import (
 // ctx.Value(ContextKeyUser) で取り出せる．
 const ContextKeyUser = "authenticated_user"
 
-// DeviceAuth は Authorization: Bearer <トークン> を検証する．
+// SessionAuth は Authorization: Bearer <トークン> を検証する．
+// openapi.yaml の SessionToken に対応する．
 //
 // いまはモックなのでトークンの中身は見ず，空かどうかだけを判定する．
 // 本実装ではトークンからユーザーを引く処理に差し替える．
-func DeviceAuth() gin.HandlerFunc {
+func SessionAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := strings.TrimSpace(strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "))
 		if token == "" {
@@ -47,7 +48,7 @@ func AdminAuth(expected string) gin.HandlerFunc {
 	}
 }
 
-// CurrentToken はDeviceAuthが通したトークンを返す．
+// CurrentToken はSessionAuthが通したトークンを返す．
 // ハンドラがモックの間は呼び出し元が無い．
 func CurrentToken(c *gin.Context) (string, bool) {
 	v, ok := c.Get(ContextKeyUser)

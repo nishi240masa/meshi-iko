@@ -16,7 +16,7 @@ const BasePath = "/api/v1"
 
 // openapi.yaml の security に対応するオペレーション．仕様を変えたらここも直す．
 var (
-	deviceTokenOperations = map[string]struct{}{
+	sessionTokenOperations = map[string]struct{}{
 		"LogoutUser":        {},
 		"GetMe":             {},
 		"GetUser":           {},
@@ -61,14 +61,14 @@ func New(handler openapi.StrictServerInterface, cfg Config) *gin.Engine {
 }
 
 func authMiddleware(adminToken string) openapi.StrictMiddlewareFunc {
-	device := middleware.DeviceAuth()
+	session := middleware.SessionAuth()
 	admin := middleware.AdminAuth(adminToken)
 
 	return func(next openapi.StrictHandlerFunc, operationID string) openapi.StrictHandlerFunc {
 		return func(c *gin.Context, request any) (any, error) {
 			switch {
-			case has(deviceTokenOperations, operationID):
-				device(c)
+			case has(sessionTokenOperations, operationID):
+				session(c)
 			case has(adminTokenOperations, operationID):
 				admin(c)
 			default:

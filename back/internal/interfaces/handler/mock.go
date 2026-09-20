@@ -45,24 +45,23 @@ func mockUserByID(id int64) (openapi.User, bool) {
 
 // mockAnswers は3状態が1件ずつ入った回答一覧を返す．クライアントが
 // 「行ける / 行けない / 未回答」の表示を一度に確認できるようにしている．
-func mockAnswers(date openapi_types.Date) []openapi.Answer {
+//
+// 日付は Answer ではなく囲む側（Answers / MyAnswer）が持つ．
+func mockAnswers() []openapi.Answer {
 	return []openapi.Answer{
 		{
-			Date:      date,
 			UserId:    mockUsers[0].Id,
 			UserName:  mockUsers[0].Name,
 			Status:    openapi.Available,
 			TimeSlots: openapi.TimeSlots{"18:00", "18:30", "19:00"},
 		},
 		{
-			Date:      date,
 			UserId:    mockUsers[1].Id,
 			UserName:  mockUsers[1].Name,
 			Status:    openapi.Unavailable,
 			TimeSlots: openapi.TimeSlots{},
 		},
 		{
-			Date:      date,
 			UserId:    mockUsers[2].Id,
 			UserName:  mockUsers[2].Name,
 			Status:    openapi.Undecided,

@@ -246,12 +246,15 @@ func TestPutMyAnswer(t *testing.T) {
 	rec := request(t, newTestServer(t), http.MethodPut, "/answers/me", body, asUser())
 	assertStatus(t, rec, http.StatusOK)
 
-	got := decode[openapi.Answer](t, rec)
-	if got.Status != openapi.Available {
-		t.Errorf("status = %q, want %q", got.Status, openapi.Available)
+	got := decode[openapi.MyAnswer](t, rec)
+	if got.Date.IsZero() {
+		t.Error("date が空です")
 	}
-	if len(got.TimeSlots) != len(slots) {
-		t.Errorf("timeSlots = %v, want %v", got.TimeSlots, slots)
+	if got.Answer.Status != openapi.Available {
+		t.Errorf("status = %q, want %q", got.Answer.Status, openapi.Available)
+	}
+	if len(got.Answer.TimeSlots) != len(slots) {
+		t.Errorf("timeSlots = %v, want %v", got.Answer.TimeSlots, slots)
 	}
 }
 
@@ -263,9 +266,9 @@ func TestPutMyAnswerUnavailableClearsSlots(t *testing.T) {
 	rec := request(t, newTestServer(t), http.MethodPut, "/answers/me", body, asUser())
 	assertStatus(t, rec, http.StatusOK)
 
-	got := decode[openapi.Answer](t, rec)
-	if len(got.TimeSlots) != 0 {
-		t.Errorf("timeSlots = %v, want empty", got.TimeSlots)
+	got := decode[openapi.MyAnswer](t, rec)
+	if len(got.Answer.TimeSlots) != 0 {
+		t.Errorf("timeSlots = %v, want empty", got.Answer.TimeSlots)
 	}
 }
 

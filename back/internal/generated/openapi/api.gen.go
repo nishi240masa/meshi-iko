@@ -115,9 +115,6 @@ func (e SendNotificationRequestTarget) Valid() bool {
 
 // Answer defines model for Answer.
 type Answer struct {
-	// Date Example: 2026-09-20
-	Date openapi_types.Date `json:"date"`
-
 	// Status 回答の状態．
 	// undecided=未定 / available=行ける / unavailable=行けない
 	//
@@ -127,6 +124,8 @@ type Answer struct {
 
 	// TimeSlots 行ける時間帯．30分刻みの開始時刻（JST）を並べる．
 	// status=available のときのみ意味を持ち，それ以外では空配列．
+	//
+	// 順序を持たない集合として扱うので，同じ開始時刻を重複して入れてはいけない．
 	//
 	//
 	// Example: ["18:00","18:30","19:00"]
@@ -233,6 +232,17 @@ type LoginResponse struct {
 	User  User   `json:"user"`
 }
 
+// MyAnswer 自分の回答1件．対象日はサーバがJSTで決めるので，
+// クライアントがどの日付に登録されたかを確認できるよう date を添える．
+type MyAnswer struct {
+	Answer Answer `json:"answer"`
+
+	// Date 実際に登録された日付（JST）．
+	//
+	// Example: 2026-09-20
+	Date openapi_types.Date `json:"date"`
+}
+
 // Poll defines model for Poll.
 type Poll struct {
 	// ClosedAt 締め切った時刻．締切前はnull．
@@ -260,7 +270,11 @@ type Poll struct {
 // Example: open
 type PollStatus string
 
-// PutMyAnswerRequest defines model for PutMyAnswerRequest.
+// PutMyAnswerRequest statusとtimeSlotsの組み合わせには制約がある．
+// status=available なら timeSlots に1つ以上の時間帯が必要で，
+// それ以外（undecided / unavailable）では省略するか空配列にする．
+// 満たさないリクエストはサーバが400で拒否するので，
+// クライアントは矛盾した回答を受け取らない．
 type PutMyAnswerRequest struct {
 	// Status 回答の状態．
 	// undecided=未定 / available=行ける / unavailable=行けない
@@ -271,6 +285,8 @@ type PutMyAnswerRequest struct {
 
 	// TimeSlots 行ける時間帯．30分刻みの開始時刻（JST）を並べる．
 	// status=available のときのみ意味を持ち，それ以外では空配列．
+	//
+	// 順序を持たない集合として扱うので，同じ開始時刻を重複して入れてはいけない．
 	//
 	//
 	// Example: ["18:00","18:30","19:00"]
@@ -317,10 +333,13 @@ type SendNotificationResponse struct {
 // TimeSlots 行ける時間帯．30分刻みの開始時刻（JST）を並べる．
 // status=available のときのみ意味を持ち，それ以外では空配列．
 //
+// 順序を持たない集合として扱うので，同じ開始時刻を重複して入れてはいけない．
+//
 // Example: ["18:00","18:30","19:00"]
 type TimeSlots = []string
 
-// UpdatePollRequest defines model for UpdatePollRequest.
+// UpdatePollRequest 遷移先の状態．scheduled → open → closed の一方向のみ有効で，
+// 戻す向きの指定はサーバが409で拒否する．
 type UpdatePollRequest struct {
 	// Status アンケートの状態．
 	// scheduled=配信前 / open=受付中 / closed=締切．
@@ -832,7 +851,7 @@ type PutMyAnswerResponseObject interface {
 	VisitPutMyAnswerResponse(w http.ResponseWriter) error
 }
 
-type PutMyAnswer200JSONResponse Answer
+type PutMyAnswer200JSONResponse MyAnswer
 
 func (response PutMyAnswer200JSONResponse) VisitPutMyAnswerResponse(w http.ResponseWriter) error {
 
@@ -1007,6 +1026,20 @@ func (response GetPoll200JSONResponse) VisitGetPollResponse(w http.ResponseWrite
 	return err
 }
 
+type GetPoll400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetPoll400JSONResponse) VisitGetPollResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetPoll401JSONResponse struct{ UnauthorizedJSONResponse }
 
 func (response GetPoll401JSONResponse) VisitGetPollResponse(w http.ResponseWriter) error {
@@ -1017,20 +1050,6 @@ func (response GetPoll401JSONResponse) VisitGetPollResponse(w http.ResponseWrite
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetPoll404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response GetPoll404JSONResponse) VisitGetPollResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1098,6 +1117,20 @@ func (response UpdatePoll401JSONResponse) VisitUpdatePollResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePoll409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdatePoll409JSONResponse) VisitUpdatePollResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
