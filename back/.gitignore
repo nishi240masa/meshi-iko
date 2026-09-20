@@ -1,0 +1,15 @@
+# ビルド成果物
+/tmp/
+/bin/
+
+# SQLiteのデータベースファイル
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# 環境ごとの設定
+.env
+
+# macOS
+.DS_Store
