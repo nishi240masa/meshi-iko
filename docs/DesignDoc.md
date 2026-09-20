@@ -26,7 +26,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 
 - ユーザー登録・ログイン（一意のuserID（好きな名前）と自動生成のindex番号）
 - 毎日「行ける」「行けない」を簡単に回答できるアンケート機能
-- 行ける人は30分ごとの行ける時間帯を選択できる機能
+- 行ける人は30分ごとの開いてる時間帯を選択できる機能（例：17:00〜23:00）
 - iOS / Android 両方対応
 - ウィジェットでアンケート回答・結果確認
 - 未回答のユーザーへのリマインド通知
@@ -106,7 +106,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 
 ```mermaid
 flowchart LR
-  A["Flutter アプリ"] -->|API| B["Backend API"]
+  A["Tauri アプリ"] -->|API| B["Backend API"]
   W["ウィジェット"] -->|API| B
   B --> C[("Cloudflare D1")]
   T["Cron Triggers<br/>16:00 / 17:30 / 18:00"] --> B
@@ -121,6 +121,7 @@ Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /
 
 **主要なデータ（エンティティ）**
 
+
 元の案（User / date / today / count / statistics）は、集計値を別テーブルに持つと回答変更のたびに更新漏れが起きやすい。
 集計値は持たず、人数は `answers` から都度集計する。プッシュ通知の宛先を保持する `devices` を加えた4テーブル構成とする。
 
@@ -131,11 +132,20 @@ Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /
 | answers | user\_id, date, status（undecided / available / unavailable）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date) | users と polls に属する |
 | devices | user\_id, device\_token（一意）, os\_type（iOS / Android）, created\_at | users に属する |
 
+
 `polls.status` が3つあるのは、16:00の配信と18:00の締め切りという2回の遷移を区別する必要があるため
 （scheduled → open → closed）。2状態だと「受付中」と「締切」を区別できない。
+遷移はこの一方向だけで、戻す向き（closed → open など）は拒否する。
+行は `PUT /polls/{date}` が初回の遷移時に作る（upsert）ため事前のseedは不要で、
+行がない日は `GET /polls/{date}` が scheduled として返す。
 
 `answers.status` に undecided を含めるのは、「まだ答えていない」と「行けないと答えた」を
 区別するため。F5のリマインドは前者だけに送る。
+
+`devices.device_token` はFCMが端末ごとに発行するので全体で一意にする。
+`POST /devices` は既存のトークンが送られたら紐づけ先を送信元のユーザーに付け替える（upsert）。
+同じ端末で別アカウントにログインし直したときに、一意制約で失敗したり
+前のユーザーに新しいユーザーの通知が届いたりするのを防ぐため。
 
 **主要なAPI**
 
@@ -176,22 +186,20 @@ Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /
 | 結果画面 | 行ける人と時間帯ごとの人数 |
 | ウィジェット（小） | 回答ボタンと行ける人数 |
 
+
 ## 8. 開発体制・スケジュール
 
-**役割分担**（4人。担当領域ごとに並行して進められる分け方の例。名前と時間を記入）
+**役割分担**（3人体制）
 
 | メンバー | 担当領域 | 主な機能 | 9/19〜9/23 に使える時間 |
 | --- | --- | --- | --- |
-|  | バックエンドAPI・DB設計 | F1, F2, F3, F8 のAPI |  |
-|  | 定時処理・外部連携（Cron、Slack、プッシュ通知送信） | F5, F6, F7 |  |
-|  | Flutterアプリ（登録・回答・結果画面） | F1, F2, F3, F8 の画面 |  |
-|  | ウィジェット（Swift / Kotlin）・実機への配布 | F4、iPhone配布方法の調査 |  |
+|  | バックエンドAPI・DB設計・定時処理（Cron） | F1, F2, F3, F8 のAPI、F6 |  |
+|  | Flutterアプリ（登録・回答・結果画面）・配布（PWA / APK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
+|  | 外部連携（Slack、プッシュ通知）・ウィジェット（Kotlin） | F7, F5, F4（この順に着手） |  |
 
 **開発ルール**
 
 - ブランチ運用：main＋機能ごとのブランチ。PRは相手が軽く見てからマージ（急ぎのときは事後レビュー可）
-- 定例：期限までは毎晩15分、その日の進捗と翌日の作業を確認
-- 連絡手段：Slack（結果通知と同じワークスペース）
 - タスク管理：GitHub Issues に機能ID（F1〜F8）をつけて起票
 
 **マイルストーン**
@@ -260,7 +268,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 
 | 日付 | 決定内容 | 理由 | 決めた人 |
 | --- | --- | --- | --- |
-| 2026-09-19 | フロントエンドはFlutter | iOS / Android 両対応で学習コストが低い |  |
+| 2026-09-19 | AndroidフロントエンドのみTauriに変更（iPhoneはFlutter Web PWA継続） | Android側での実装方針を切り替え、iPhoneの配布方針は維持するため |  |
 | 2026-09-19 | DBはCloudflare D1 | 小規模で無料 |  |
 | 2026-09-19 | 認証はメール・パスワードを使わず自前のuserIDのみ | 友人内で手軽に使うため |  |
 | 2026-09-19 | ストア公開・多言語対応はしない | 利用者が友人10人程度のため |  |
@@ -273,3 +281,5 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-20 | プッシュ通知の宛先を保持する devices テーブルを追加する | FCMトークンはユーザーごとに複数・失効しうるので users に持たせられないため |  |
 | 2026-09-20 | Cron等の管理用APIはユーザーとは別の `X-Admin-Token` で認証する | 誰でも全員に通知を送れる状態を塞ぎ、トークンの取り違えも防ぐため |  |
 | 2026-09-20 | userIDだけでログインできる状態を受け入れる | 友人10人の範囲であり、合言葉を足すコストに見合わないため |  |
+| 2026-09-20 | pollの行は `PUT /polls/{date}` のupsertで作り、行がない日は scheduled として返す | 事前seedや作成用エンドポイントを増やさずに3状態を表せるため |  |
+| 2026-09-20 | `devices.device_token` は既存なら紐づけ先を付け替える（upsert） | 同じ端末で別アカウントにログインしたときの一意制約違反と誤配信を防ぐため |  |

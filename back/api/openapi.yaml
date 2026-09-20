@@ -76,7 +76,11 @@ paths:
     post:
       tags: [users]
       summary: ユーザーログイン
-      description: 登録済みのユーザー名を指定してログインし，トークンを返す．
+      description: |
+        登録済みのユーザー名を指定してログインし，トークンを返す．
+
+        ユーザー名だけで認証が通るので，名前を知っている第三者はなりすませる．
+        友人内で使う前提で受け入れているリスク（docs/DesignDoc.md のリスク表を参照）．
       operationId: loginUser
       requestBody:
         required: true
@@ -107,7 +111,7 @@ paths:
         再びログインすると新しいトークンが発行される．
       operationId: logoutUser
       security:
-        - DeviceToken: []
+        - SessionToken: []
       responses:
         '204':
           description: ログアウト成功．レスポンスボディはなし．
@@ -123,7 +127,7 @@ paths:
       description: トークンで認証し，ログイン中のユーザー情報を返す．
       operationId: getMe
       security:
-        - DeviceToken: []
+        - SessionToken: []
       responses:
         '200':
           description: 取得成功
@@ -142,7 +146,7 @@ paths:
       summary: ユーザー取得
       operationId: getUser
       security:
-        - DeviceToken: []
+        - SessionToken: []
       parameters:
         - name: userId
           in: path
@@ -175,7 +179,7 @@ paths:
         時間帯ごとの人数は10人規模なのでクライアント側で集計する．
       operationId: getAnswers
       security:
-        - DeviceToken: []
+        - SessionToken: []
       parameters:
         - name: date
           in: query
@@ -212,7 +216,7 @@ paths:
         どちらもリクエストでは指定しない．
       operationId: putMyAnswer
       security:
-        - DeviceToken: []
+        - SessionToken: []
       requestBody:
         required: true
         content:
@@ -225,7 +229,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Answer'
+                $ref: '#/components/schemas/MyAnswer'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -242,9 +246,13 @@ paths:
       description: |
         指定日のアンケートが「配信前」「受付中」「締切」のどれかを返す．
         クライアントは回答フォームを出すかどうかの判定に使う．
+
+        まだ一度も遷移していない日（16:00前など，pollの行がない日）は
+        status=scheduled，openedAt・closedAt=null を返す．
+        日付として妥当なら必ず200を返すので，「まだpollがない」ことによる404はない．
       operationId: getPoll
       security:
-        - DeviceToken: []
+        - SessionToken: []
       parameters:
         - $ref: '#/components/parameters/PollDate'
       responses:
@@ -254,10 +262,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
     put:
@@ -266,6 +274,11 @@ paths:
       description: |
         Cronから呼び出し，16:00の配信（open）と18:00の締め切り（closed）を切り替える．
         同じ状態を二重に送っても結果が変わらないよう冪等にする．
+
+        pollの行がまだない日に呼ばれたときは，その日の行を作ってから遷移させる（upsert）．
+        遷移は scheduled → open → closed の一方向だけを許し，
+        進んだ状態から戻すリクエスト（closed→open など）は409で拒否する．
+        いまと同じ状態を送った場合は何も変えずに200を返す．
       operationId: updatePoll
       security:
         - AdminToken: []
@@ -288,6 +301,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -298,9 +313,13 @@ paths:
       description: |
         プッシュ通知（FCM）の宛先を登録する．
         同じトークンを再送しても重複登録しない．
+
+        deviceTokenは全体で一意に扱う．すでに別のユーザーに紐づいているトークンが
+        送られたときは，紐づけ先を今回のユーザーに付け替える（upsert）．
+        同じ端末で別アカウントにログインし直しても，前のユーザーに通知が届くことはない．
       operationId: createDeviceToken
       security:
-        - DeviceToken: []
+        - SessionToken: []
       requestBody:
         required: true
         content:
@@ -349,7 +368,7 @@ paths:
 
 components:
   securitySchemes:
-    DeviceToken:
+    SessionToken:
       type: http
       scheme: bearer
       description: |
@@ -361,7 +380,7 @@ components:
       name: X-Admin-Token
       description: |
         管理用トークン．Cronなどサーバ間の呼び出しでのみ使う．
-        DeviceTokenとは別物なので，ヘッダも分けて取り違えを防ぐ．
+        SessionTokenとは別物なので，ヘッダも分けて取り違えを防ぐ．
 
   parameters:
     PollDate:
@@ -447,19 +466,18 @@ components:
       description: |
         行ける時間帯．30分刻みの開始時刻（JST）を並べる．
         status=available のときのみ意味を持ち，それ以外では空配列．
+
+        順序を持たない集合として扱うので，同じ開始時刻を重複して入れてはいけない．
       items:
         type: string
         pattern: '^([01][0-9]|2[0-3]):(00|30)$'
+      uniqueItems: true
       example: ["18:00", "18:30", "19:00"]
 
     Answer:
       type: object
-      required: [date, userId, userName, status, timeSlots]
+      required: [userId, userName, status, timeSlots]
       properties:
-        date:
-          type: string
-          format: date
-          example: 2026-09-20
         userId:
           type: integer
           format: int64
@@ -474,6 +492,21 @@ components:
           $ref: '#/components/schemas/AnswerStatus'
         timeSlots:
           $ref: '#/components/schemas/TimeSlots'
+
+    MyAnswer:
+      type: object
+      description: |
+        自分の回答1件．対象日はサーバがJSTで決めるので，
+        クライアントがどの日付に登録されたかを確認できるよう date を添える．
+      required: [date, answer]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 実際に登録された日付（JST）．
+          example: 2026-09-20
+        answer:
+          $ref: '#/components/schemas/Answer'
 
     Answers:
       type: object
@@ -522,6 +555,9 @@ components:
     UpdatePollRequest:
       type: object
       required: [status]
+      description: |
+        遷移先の状態．scheduled → open → closed の一方向のみ有効で，
+        戻す向きの指定はサーバが409で拒否する．
       properties:
         status:
           $ref: '#/components/schemas/PollStatus'
@@ -575,6 +611,12 @@ components:
     PutMyAnswerRequest:
       type: object
       required: [status]
+      description: |
+        statusとtimeSlotsの組み合わせには制約がある．
+        status=available なら timeSlots に1つ以上の時間帯が必要で，
+        それ以外（undecided / unavailable）では省略するか空配列にする．
+        満たさないリクエストはサーバが400で拒否するので，
+        クライアントは矛盾した回答を受け取らない．
       properties:
         status:
           $ref: '#/components/schemas/AnswerStatus'
