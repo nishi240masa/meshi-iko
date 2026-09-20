@@ -229,7 +229,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Answer'
+                $ref: '#/components/schemas/MyAnswer'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -476,12 +476,8 @@ components:
 
     Answer:
       type: object
-      required: [date, userId, userName, status, timeSlots]
+      required: [userId, userName, status, timeSlots]
       properties:
-        date:
-          type: string
-          format: date
-          example: 2026-09-20
         userId:
           type: integer
           format: int64
@@ -496,6 +492,21 @@ components:
           $ref: '#/components/schemas/AnswerStatus'
         timeSlots:
           $ref: '#/components/schemas/TimeSlots'
+
+    MyAnswer:
+      type: object
+      description: |
+        自分の回答1件．対象日はサーバがJSTで決めるので，
+        クライアントがどの日付に登録されたかを確認できるよう date を添える．
+      required: [date, answer]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 実際に登録された日付（JST）．
+          example: 2026-09-20
+        answer:
+          $ref: '#/components/schemas/Answer'
 
     Answers:
       type: object
