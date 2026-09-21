@@ -1,0 +1,44 @@
+#開発用
+name: meshi-iko-back-dev
+
+services:
+  api:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      GIN_MODE: debug
+      DB_PATH: /app/data/meshi-iko.db
+      CORS_ALLOWED_ORIGIN: "*"
+      # 開発用の固定値．Cronから叩く管理用エンドポイントで使う．
+      ADMIN_TOKEN: dev-admin-token
+      TZ: Asia/Tokyo
+    volumes:
+      - .:/app
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - db-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/v1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:v5.29.5
+    ports:
+      - "8081:8080"
+    environment:
+      SWAGGER_JSON: /spec/openapi.yaml
+      TRY_IT_OUT_ENABLED: "true"
+    volumes:
+      - ./api:/spec:ro
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  db-data:

@@ -1,0 +1,22 @@
+# golangci-lint の設定．`make lint` から使う．
+# https://golangci-lint.run/docs/configuration/file/
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  # standard = errcheck / govet / ineffassign / staticcheck / unused
+  default: standard
+  enable:
+    # 呼ばれていない未エクスポートの関数・型・変数を検出する．
+    # Goコンパイラはこれらをエラーにしないので，放っておくと死んだコードが残る．
+    - unused
+    # コメントや文字列のスペルミス．
+    - misspell
+  exclusions:
+    # 生成物（internal/generated）は対象外．ヘッダで判別できるが，
+    # パスでも除外して取りこぼさないようにする．
+    generated: strict
+    paths:
+      - internal/generated

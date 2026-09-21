@@ -1,0 +1,22 @@
+# 本番相当
+name: meshi-iko-back-prod
+
+services:
+  api:
+    build:
+      context: .
+      target: prod
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      GIN_MODE: release
+      DB_PATH: /app/data/meshi-iko.db
+      CORS_ALLOWED_ORIGIN: "*"
+      TZ: Asia/Tokyo
+    volumes:
+      - db-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  db-data:
