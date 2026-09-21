@@ -1,6 +1,6 @@
 # メシイコ デザインドック
 
-作成 2026-09-19 / 最終更新 2026-09-20
+作成 2026-09-19 / 最終更新 2026-09-21
 
 API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Truth）。
 このドックはその背景と決定理由を残す。両者が食い違った場合は openapi.yaml を優先する。
@@ -82,7 +82,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | パフォーマンス | アプリの結果表示は1分ごとに更新。ウィジェットはOSの更新回数制限があるため、リアルタイムではなく「回答時・アプリ起動時に即更新＋定期更新」を目標にする |
 | セキュリティ | 基本的な個人情報以外は扱わない。利用者向けAPIは `Authorization: Bearer <セッショントークン>` で認証する。Cronなどサーバ間から叩く管理用APIは、取り違えを防ぐため別ヘッダ `X-Admin-Token` で認証する。ただしログインはuserIDのみで通るため、なりすまし自体は防げない（セクション9のリスク参照） |
 | 可用性・バックアップ | 本番運用後に次フェーズで検討 |
-| 運用コスト | 完全無料。Apple Developer Program（有料）には登録しない |
+| 運用コスト | ほぼ無料（ECRのイメージ保管料が月十数円）。Apple Developer Program（有料）には登録しない |
 | タイムゾーン | すべて日本時間（JST）で扱う |
 
 ## 6. 技術スタック
@@ -92,32 +92,37 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | フロントエンド | Flutter | 1つのコードでAndroidアプリとiPhone向けWeb版（PWA）を作れる。学習コストが低い | Tauri / React Native |
 | ウィジェット | Kotlin（Glance）+ home\_widget パッケージ（Androidのみ。iPhoneはショートカットで代替） | Flutterだけではウィジェットを書けないため、各OSのネイティブコードが必要 |  |
 | バックエンド / API | Go（Gin） | 高性能でスケーラブルなサーバー開発に適している | Node.js / Python |
-| データベース | Cloudflare D1（SQLite） | 小規模アプリに適していて無料 | AWS RDS / Supabase / Firebase |
+| データベース | Neon（PostgreSQL） | サーバーレスのマネージドPostgreSQL。無料枠（ストレージ0.5GB・月100CU時間）で10人規模なら十分に足りる。`database/sql` がそのまま使えるのでGORMを変えずに済む | Cloudflare D1 / Turso / Supabase / AWS RDS |
 | 認証 | 自前（userID＋セッショントークン） | 簡単なIDで登録・ログインできる。利用者向けはBearerトークン、Cron等の管理用は `X-Admin-Token` に分離 | Firebase / Auth0 / Google Sign-In |
-| インフラ・ホスティング | Cloudflare | 無料で利用可能 | AWS EC2 |
-| 定時処理 | Cloudflare Cron Triggers | 16:00配信・17:30リマインド・18:00締め切りを実行 | GitHub Actions の schedule |
+| インフラ・ホスティング | AWS Lambda（関数URL）＋ Lambda Web Adapter ＋ ECR | LWAがAWS固有のイベント形式を吸収するので、ローカルと同じGinのコードがそのまま動く。関数URLはAPI Gatewayを挟まないぶん安く、スリープもない | Cloudflare Workers / Koyeb / Render / AWS EC2 |
+| 定時処理 | EventBridge Rule ＋ API Destination | 16:00配信・17:30リマインド・18:00締め切りに、既存の管理用APIへ `X-Admin-Token` 付きでHTTPSリクエストを送る | Cloudflare Cron Triggers / GitHub Actions の schedule |
 | 通知 | FCM（Firebase Cloud Messaging） | iOS / Android 両方に無料でプッシュ通知できる | Slack DMで代替 |
 | CI/CD | GitHub Actions | GitHubと連携して自動化できる | Jenkins / Travis CI / Argo |
 | 開発ツール | GitHub（Issues / Projects） | コード管理・タスク管理を一元化できる | GitLab / Bitbucket |
 
-注意：Cloudflare Workers は Go（Gin）をそのまま動かせない（WebAssembly経由の限定的なサポートのみ）。「Go を別の無料ホストで動かしD1をREST APIで使う」か「Workers上を TypeScript（Hono）で書く」かを決める必要がある（未決事項）。Cron Triggers の時刻はUTC指定なので、16:00 JST は `0 7 * * *` になる。
+注意が3つある。EventBridge Rule の cron はUTC指定なので、16:00 JST は `cron(0 7 * * ? *)` になる。API Destination は5秒でタイムアウトするので、コールドスタートに備えてリトライポリシーを設定する。Lambdaは同時実行ごとにプロセスが分かれコネクションプールを共有できないため、Neonは pooler エンドポイント（ホスト名に `-pooler` が付く方）を使い、GORM側も接続数を絞る。
 
 ## 7. アーキテクチャ・データ設計
 
 ```mermaid
 flowchart LR
-  A["Tauri アプリ"] -->|API| B["Backend API"]
+  A["Tauri アプリ"] -->|API| B["Backend API<br/>Lambda 関数URL + LWA + Go（Gin）"]
   W["ウィジェット"] -->|API| B
-  B --> C[("Cloudflare D1")]
-  T["Cron Triggers<br/>16:00 / 17:30 / 18:00"] --> B
+  B --> C[("Neon（PostgreSQL）")]
+  T["EventBridge Rule<br/>16:00 / 17:30 / 18:00"] -->|"API Destination<br/>X-Admin-Token"| B
   B --> S["Slack Incoming Webhook"]
   B --> N["FCM プッシュ通知"]
   N --> A
 ```
 
-CronがAPIを起動し、配信・リマインド・締め切りのたびにSlack投稿とプッシュ通知を行う。
-Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /admin/notifications`（リマインド）の2つで、
+EventBridge の定時ルールが API Destination 経由でHTTPSリクエストを送り、
+配信・リマインド・締め切りのたびにSlack投稿とプッシュ通知を行う。
+叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /admin/notifications`（リマインド）の2つで、
 どちらも `X-Admin-Token` で認証する。
+
+定時処理専用のエンドポイントは作らない。LWA には非HTTPイベントを `/events` へ流すパススルー機能があるが、
+関数URLは公開されるため、そのパスも外から叩ける。パススルーではヘッダを付けられず `X-Admin-Token` が使えないので、
+鍵のかかっていない入口が増え、2つ目の認証を作ることになる。既存の管理用APIをHTTPSで叩けばその必要がない。
 
 **主要なデータ（エンティティ）**
 
@@ -244,8 +249,9 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | iPhoneのWebプッシュはホーム画面に追加しないと届かず、届かない人も出やすい | リマインドを見逃す | リマインドと結果はSlackでも送る（F5・F7をSlackで兼ねる） |
 | iPhoneではネイティブのウィジェットが作れない | F4がiPhoneで実現できない | F4はAndroidのみ。iPhoneはショートカットウィジェットで代替 |
 | Flutter Web は初回表示が重め | 開くのが面倒で回答率が下がる | 回答画面を最初に表示し、画面数を最小にする |
-| Cloudflare Workers で Go（Gin）が動かない | バックエンドの作り直し | 無料で完結させるならWorkers上をTypeScript（Hono）で書くのが最も確実。Goを使う場合は無料で常時動かせるホストを9/19中に探す |
-| 無料枠の上限を超える | サービスが止まる | 10人規模なら Cloudflare・FCM・Slack の無料枠で十分。念のため各サービスで課金設定をしない |
+| AWS（ECR / IAM / Lambda）の初期設定に手こずる | デプロイできず9/23に間に合わない | LWAはイメージに同梱するだけなので、同じイメージは普通のホストでもそのまま動く。詰まったらKoyebやRenderに同じイメージを投げて逃げる |
+| Lambdaが同時実行ごとにNeonへ接続を張り、接続数の上限に当たる | APIが5xxを返す | Neonの pooler エンドポイントを使い、GORM側も `MaxOpenConns` を絞る |
+| 無料枠の上限を超える | サービスが止まる | 10人規模なら AWS・Neon・FCM・Slack の無料枠で十分。FCMとSlackは課金設定をせず、AWSは請求アラートを設定しておく |
 | 期限まで4日で Must が8個ある | MVPが完成しない | 削る順番を決めておく：F4 → F5 → F7 の順に後回し |
 | userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。ログインのたびにトークンを再発行し以前のものを無効化するので、乗っ取られた側は端末から弾き出されて異変に気づける |
 | 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}` と `POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
@@ -254,7 +260,9 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 
 **未決事項**
 
-- [ ] バックエンドの実行環境：Workers上をTypeScript（Hono）で書く / Goを無料の別ホストで動かす
+- [x] バックエンドの実行環境 → AWS Lambda（関数URL＋LWA）＋ Neon（PostgreSQL）で確定（2026-09-21）
+- [ ] ドメインモデルとDBモデルを1つの構造体で兼ねるか、`*Record` を分けて詰め替えるか
+  - 暫定：兼ねる。テーブルとエンティティが1対1で、値オブジェクトも集約も無いため。`answers.time_slots` だけはJSON変換が要るので `AnswerRecord` を残す
 - [ ] Slackでの回答（ボタン付きメッセージ）をMVPに入れるか、通知だけにするか
 - [ ] 18:00の一時締め切り後に回答・変更を受け付けるか、「一時」締め切りの後に本締め切りがあるか
   - 暫定：受け付けない。`PUT /answers/me` が締切後は 409 を返す。受け付ける方針にするなら409を消すだけでよい
@@ -283,3 +291,9 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-20 | userIDだけでログインできる状態を受け入れる | 友人10人の範囲であり、合言葉を足すコストに見合わないため |  |
 | 2026-09-20 | pollの行は `PUT /polls/{date}` のupsertで作り、行がない日は scheduled として返す | 事前seedや作成用エンドポイントを増やさずに3状態を表せるため |  |
 | 2026-09-20 | `devices.device_token` は既存なら紐づけ先を付け替える（upsert） | 同じ端末で別アカウントにログインしたときの一意制約違反と誤配信を防ぐため |  |
+| 2026-09-21 | バックエンドの実行環境は AWS Lambda（関数URL＋Lambda Web Adapter）にする | LWAがAWS固有のイベント形式を吸収するので、ローカルと同じGin・GORMのコードをそのまま動かせるため |  |
+| 2026-09-21 | DBを Cloudflare D1 から Neon（PostgreSQL）に変える | 無料ホストのファイルシステムは揮発するためDBはマネージドに置く必要があり、D1には `database/sql` ドライバが無くGORMを捨てることになるため |  |
+| 2026-09-21 | 定時処理は EventBridge Rule ＋ API Destination から既存の管理用APIを叩く | 定時処理専用のエンドポイントを足すと、鍵のかかっていない入口が増え、`X-Admin-Token` とは別の認証を作ることになるため |  |
+| 2026-09-21 | スキーマは Go の構造体（GORM の AutoMigrate）を正とし、SQLのマイグレーションファイルは持たない | 正を2つに分けるとズレるため。カラム削除やリネームが必要になった時点でマイグレーションツールを入れる |  |
+| 2026-09-21 | AutoMigrate はLambda起動時ではなく `cmd/migrate` から流す | 同時にコールドスタートするとDDLが競合し、毎回の起動も遅くなるため |  |
+| 2026-09-21 | テストは SQLite ではなく Postgres を立てて実行する | 回答のupsert（`ON CONFLICT`）など、本番と同じ方言で検証するため |  |
