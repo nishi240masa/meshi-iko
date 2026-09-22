@@ -11,10 +11,6 @@ export function LoginForm() {
       console.log("Name:", result.data.name);
     } else {
       console.error("Validation error:", result.error);
-    }
-
-    if (!result.data?.name) {
-      console.log("Name is required");
       return;
     }
 
