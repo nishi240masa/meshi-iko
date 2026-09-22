@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { api } from "../../lib/api";
@@ -5,6 +6,7 @@ import styles from "./LoginForm.module.css";
 import { loginSchema } from "./LoginSchema";
 
 export function LoginForm() {
+  const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,6 +31,8 @@ export function LoginForm() {
     }
 
     console.log("Login response:", data);
+    //ログイン成功時は投票ページに遷移
+    navigate({ to: "/vote" });
   };
   return (
     <form onSubmit={handleSubmit} className={styles.loginForm}>
