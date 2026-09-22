@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Greet } from '../components/Greet'
+import './__root.css'
 
 export const Route = createFileRoute('/')({
   component: HomeComponent,
@@ -7,7 +8,7 @@ export const Route = createFileRoute('/')({
 
 function HomeComponent() {
   return (
-	<main>
+	<main className="container">
 	  <h1>Welcome to Tauri + React</h1>
 	  <Greet />
 	</main>
