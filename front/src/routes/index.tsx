@@ -1,6 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Greet } from "../components/Greet";
 import "./__root.css";
+
+import { createFileRoute } from "@tanstack/react-router";
+
+import { Greet } from "../components/Greet";
 
 export const Route = createFileRoute("/")({
   component: HomeComponent,
