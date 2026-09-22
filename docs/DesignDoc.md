@@ -145,14 +145,15 @@ Lambda を直接起動してイベントを受ける入口は作らない。LWA 
 
 
 元の案（User / date / today / count / statistics）は、集計値を別テーブルに持つと回答変更のたびに更新漏れが起きやすい。
-集計値は持たず、人数は `answers` から都度集計する。プッシュ通知の宛先を保持する `devices` を加えた4テーブル構成とする。
+集計値は持たず、人数は `answers` から都度集計する。プッシュ通知の宛先を保持する `devices` と、ログイン中の端末ごとのセッションを保持する `sessions` を加えた5テーブル構成とする。
 
 | テーブル | 主な項目 | 関連 |
 | --- | --- | --- |
-| users | id（自動採番）, name（一意）, token, created\_at | answers を複数持つ |
+| users | id（自動採番）, name（一意）, created\_at | sessions・answers・devices を複数持つ |
+| sessions | id（自動採番）, user\_id, token（一意）, created\_at | users に属する。devices を持つ |
 | polls | date（主キー）, status（scheduled / open / closed）, opened\_at, closed\_at | その日の answers を持つ |
 | answers | user\_id, date, status（undecided / available / unavailable）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date) | users と polls に属する |
-| devices | user\_id, device\_token（一意）, os\_type（iOS / Android）, created\_at | users に属する |
+| devices | fid（主キー）, user\_id, session\_id, os\_type（Android / web）, created\_at, updated\_at | users と sessions に属する |
 
 
 `polls.status` が3つあるのは、16:00の配信と18:00の締め切りという2回の遷移を区別する必要があるため
@@ -164,10 +165,36 @@ Lambda を直接起動してイベントを受ける入口は作らない。LWA 
 `answers.status` に undecided を含めるのは、「まだ答えていない」と「行けないと答えた」を
 区別するため。F5のリマインドは前者だけに送る。
 
-`devices.device_token` はFCMが端末ごとに発行するので全体で一意にする。
-`POST /devices` は既存のトークンが送られたら紐づけ先を送信元のユーザーに付け替える（upsert）。
+1人が複数の端末（AndroidアプリとPC・iPhoneのPWAなど）から同時に使えるようにする。
+セッションは端末ごとに1行で、ログインのたびに1行増え、ほかの端末のセッションは消さない。
+ログアウトは、いま使っているセッションだけを消す。
+
+`devices.fid` は通知の宛先で、FCMが端末（アプリのインストール）ごとに発行する Firebase Installation ID（FID）を保存する。
+FCMの登録トークン（`getToken()`）は2026年に非推奨になり、送信側の Go Admin SDK も v4.21.0 で `Token` を非推奨にして `Fid` を足したため、最初からFIDを使う。
+FIDは全体で一意なので主キーにする。
+
+`POST /devices` は、アプリの起動時・通知を許可した直後・FIDが変わったとき（`onRegistered()`）に呼ぶ。
+既存のFIDが送られたら、紐づけ先のユーザーとセッションを送信元のものに付け替え、`updated_at` を更新する（upsert）。
 同じ端末で別アカウントにログインし直したときに、一意制約で失敗したり
 前のユーザーに新しいユーザーの通知が届いたりするのを防ぐため。
+
+devices をセッションに紐づけるのは、ログアウトした端末に通知が届き続けるのを防ぐため。
+セッションを消すと、その端末の devices も一緒に消す。クライアントはログアウト時にFIDを送らなくてよく、
+同じユーザーのほかの端末への通知は止まらない。
+ログイン時にFIDを一緒に送る形にはしない。iPhoneのPWAでは通知の許可がユーザーのタップでしか求められず、
+ログインの時点でFIDがまだ無いことが多いため。
+
+送信時に FCM が `UNREGISTERED`（404）か `INVALID_ARGUMENT`（400）を返したら、そのFIDはもう使えないので行を消す。
+`updated_at` は、長く更新されていない行を掃除する必要が出たときの判断材料として持つ（FCMは1か月接続の無い端末を古いとみなす）。
+
+一斉送信（全員 / 未回答者）はFCMのトピック配信を使わず、DBから宛先のFIDを引いて `SendEachForMulticast`（`Fids` を指定、1回500件まで）で送る。
+トピックへの登録（`SubscribeToTopic`）は登録トークンしか受け付けずFIDでは使えないうえ、「未回答者だけ」のような絞り込みもできないため。
+結果は宛先ごとに返るので、`IsUnregistered` のものはその場で行を消す。
+
+フロント側の注意：FIDの取得は `register()` / `onRegistered()` だけで行い、非推奨の `getToken()` は呼ばない。
+混ぜると後から古い方式の登録が上書きし、FIDが送信先として無効になる（JS SDK 12.15〜12.16で報告あり）。
+`onRegistered()` のコールバックは1つしか持てないので、登録する場所を1か所にする。
+ログアウト時の `unregister()` は不要（サーバ側でセッションごと devices を消すため）。
 
 **主要なAPI**
 
@@ -177,8 +204,8 @@ Lambda を直接起動してイベントを受ける入口は作らない。LWA 
 | --- | --- | --- | --- |
 | GET /health | なし | プロセスとDB接続の死活確認 | — |
 | POST /users | なし | userIDを登録し、セッショントークンを返す | F1 |
-| POST /users/login | なし | 登録済みのuserIDでログインし、トークンを再発行 | F1 |
-| POST /users/logout | Bearer | いま使っているトークンを無効化 | F1 |
+| POST /users/login | なし | 登録済みのuserIDでログインし、この端末用のセッショントークンを発行（ほかの端末のセッションは残す） | F1 |
+| POST /users/logout | Bearer | いま使っているセッションと、それに紐づく devices を消す | F1 |
 | GET /users/me | Bearer | ログイン中のユーザー情報 | F1 |
 | GET /users/{userId} | Bearer | 指定ユーザーの情報 | — |
 | PUT /answers/me | Bearer | 当日の自分の回答を登録・更新（冪等） | F2, F3 |
@@ -186,7 +213,7 @@ Lambda を直接起動してイベントを受ける入口は作らない。LWA 
 | GET /polls/{date} | Bearer | その日が配信前 / 受付中 / 締切のどれか | F6 |
 | PUT /polls/{date} | Admin | 指定日の配信・締め切りの切り替え（手動で直すとき用） | F6 |
 | PUT /admin/polls/today | Admin | 今日の配信・締め切りの切り替え（Schedulerから） | F6 |
-| POST /devices | Bearer | FCMの通知トークンを登録 | F5 |
+| POST /devices | Bearer | 通知の宛先（FID）をいまのセッションに紐づけて登録・更新 | F5 |
 | POST /admin/notifications | Admin | プッシュ通知の送信（全員 / 未回答者） | F5 |
 
 設計上の判断：
@@ -271,7 +298,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | Lambdaが同時実行ごとにNeonへ接続を張り、接続数の上限に当たる | APIが5xxを返す | Neonの pooler エンドポイントを使い、GORM側も `MaxOpenConns` を絞る |
 | 無料枠の上限を超える | サービスが止まる | 10人規模なら AWS・Neon・FCM・Slack の無料枠で十分。FCMとSlackは課金設定をせず、AWSは請求アラートを設定しておく |
 | 期限まで4日で Must が8個ある | MVPが完成しない | 削る順番を決めておく：F4 → F5 → F7 の順に後回し |
-| userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。ログインのたびにトークンを再発行し以前のものを無効化するので、乗っ取られた側は端末から弾き出されて異変に気づける |
+| userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。複数端末でのログインを許すため、乗っ取られても元の端末は追い出されず、本人は気づきにくい |
 | 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}`・`PUT /admin/polls/today`・`POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
 
 参考：[iOS アプリの配布方法（Zenn）](https://zenn.dev/yusuga/articles/9e9b632e0338b2)、[日本におけるiOSの変更（Apple Developer）](https://developer.apple.com/jp/support/app-distribution-in-japan/)
@@ -317,3 +344,9 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-21 | テストは SQLite ではなく Postgres を立てて実行する | 回答のupsert（`ON CONFLICT`）など、本番と同じ方言で検証するため |  |
 | 2026-09-22 | 定時処理は EventBridge Rule から EventBridge Scheduler ＋ イベントバス ＋ API Destination に変える | 定時ルールはレガシーで、AWSは Scheduler を推奨しているため。Scheduler はHTTPSを直接叩けないのでバスを挟む。Lambdaを直接起動する方法は、LWAにHTTPの形のJSONを渡すという公式に案内されていない使い方になるため採らない |  |
 | 2026-09-22 | 定時処理からは日付を受け取らない `PUT /admin/polls/today` を叩き、「今日」はサーバがJSTで決める | Scheduler・ルールのどちらも、URLにJSTの日付を入れられないため（入れられるのはUTCの日時を丸ごとか、固定の文字だけ） |  |
+| 2026-09-22 | 1ユーザーが複数の端末から同時にログインできるようにし、セッションを `sessions` テーブルに分ける | AndroidアプリとPWAなど、1人が複数の端末で使うため。代わりに、なりすまされても元の端末が追い出されなくなることは受け入れる |  |
+| 2026-09-22 | devices をセッションに紐づけ、ログアウトでその端末の devices も消す | ログアウトした端末に通知が届き続けるのを防ぐため。クライアントがログアウト時にFIDを送らずに済む |  |
+| 2026-09-22 | 通知の宛先はFCMの登録トークンではなくFIDで持つ | 登録トークンは2026年に非推奨になり、Go Admin SDK も v4.21.0 で送信先を `Fid` に切り替えたため |  |
+| 2026-09-22 | 通知の宛先はログインAPIに同梱せず、`POST /devices` で起動時・許可直後・変更時に送る | Firebaseの推奨が「起動時と変更時に送る」であり、iPhoneのPWAではログインの時点で通知の許可（＝FID）が無いことが多いため |  |
+| 2026-09-22 | 一斉送信はトピック配信を使わず、DBから引いたFIDに `SendEachForMulticast` で送る | FIDはトピックに登録できず、「未回答者だけ」の絞り込みもトピックではできないため。Firebaseも少人数には個別の宛先への送信を勧めている |  |
+| 2026-09-22 | `os_type` は Android / web にする | iPhoneはネイティブアプリではなくPWAのWebプッシュで通知を受けるため |  |
