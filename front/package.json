@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint-staged": "lint-staged",
+    "generate:api": "mkdir -p src/generated && pnpm openapi-typescript ../back/api/openapi.yaml -o src/generated/api.ts",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "globals": "^17.12.0",
     "lint-staged": "^17.5.1",
+    "openapi-typescript": "^7.13.0",
     "prettier": "3.9.8",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.0",
