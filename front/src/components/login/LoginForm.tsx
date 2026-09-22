@@ -1,7 +1,8 @@
+import { api } from "../../lib/api";
 import { loginSchema } from "./LoginSchema";
 
 export function LoginForm() {
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const userName = formData.get("name");
@@ -18,19 +19,14 @@ export function LoginForm() {
     }
 
     // ログインリクエスト
-    fetch(`${import.meta.env.VITE_API_LOCAL_BASE_URL}/users/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name: result.data.name }),
-    }).then((response) => {
-      if (response.ok) {
-        console.log("Login successful");
-      } else {
-        console.error("Login failed");
-      }
+    const { data, error } = await api.POST("/users/login", {
+      body: { name: result.data.name },
     });
+    if (error) {
+      console.error("Login error:", error);
+    }
+
+    console.log("Login response:", data);
   };
   return (
     <form onSubmit={handleSubmit}>
