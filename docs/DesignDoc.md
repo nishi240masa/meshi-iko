@@ -1,6 +1,6 @@
 # メシイコ デザインドック
 
-作成 2026-09-19 / 最終更新 2026-09-21
+作成 2026-09-19 / 最終更新 2026-09-22
 
 API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Truth）。
 このドックはその背景と決定理由を残す。両者が食い違った場合は openapi.yaml を優先する。
@@ -95,12 +95,12 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | データベース | Neon（PostgreSQL） | サーバーレスのマネージドPostgreSQL。無料枠（ストレージ0.5GB・月100CU時間）で10人規模なら十分に足りる。`database/sql` がそのまま使えるのでGORMを変えずに済む | Cloudflare D1 / Turso / Supabase / AWS RDS |
 | 認証 | 自前（userID＋セッショントークン） | 簡単なIDで登録・ログインできる。利用者向けはBearerトークン、Cron等の管理用は `X-Admin-Token` に分離 | Firebase / Auth0 / Google Sign-In |
 | インフラ・ホスティング | AWS Lambda（関数URL）＋ Lambda Web Adapter ＋ ECR | LWAがAWS固有のイベント形式を吸収するので、ローカルと同じGinのコードがそのまま動く。関数URLはAPI Gatewayを挟まないぶん安く、スリープもない | Cloudflare Workers / Koyeb / Render / AWS EC2 |
-| 定時処理 | EventBridge Rule ＋ API Destination | 16:00配信・17:30リマインド・18:00締め切りに、既存の管理用APIへ `X-Admin-Token` 付きでHTTPSリクエストを送る | Cloudflare Cron Triggers / GitHub Actions の schedule |
+| 定時処理 | EventBridge Scheduler ＋ イベントバス ＋ API Destination | AWSが定時実行に推奨するScheduler を使い、日本時間でcronを書ける。SchedulerはHTTPSを直接叩けないため、イベントバスのルールからAPI Destinationで管理用APIへ `X-Admin-Token` 付きのリクエストを送る | EventBridge Rule（レガシー）＋ API Destination / Scheduler から Lambda を直接起動 / Cloudflare Cron Triggers / GitHub Actions の schedule |
 | 通知 | FCM（Firebase Cloud Messaging） | iOS / Android 両方に無料でプッシュ通知できる | Slack DMで代替 |
 | CI/CD | GitHub Actions | GitHubと連携して自動化できる | Jenkins / Travis CI / Argo |
 | 開発ツール | GitHub（Issues / Projects） | コード管理・タスク管理を一元化できる | GitLab / Bitbucket |
 
-注意が3つある。EventBridge Rule の cron はUTC指定なので、16:00 JST は `cron(0 7 * * ? *)` になる。API Destination は5秒でタイムアウトするので、コールドスタートに備えてリトライポリシーを設定する。Lambdaは同時実行ごとにプロセスが分かれコネクションプールを共有できないため、Neonは pooler エンドポイント（ホスト名に `-pooler` が付く方）を使い、GORM側も接続数を絞る。
+注意が2つある。API Destination は5秒でタイムアウトし、失敗すると既定で最大24時間・185回まで再送する。401や409も再送の対象なので、設定ミスや逆向きの遷移で叩かれ続けないよう、ルール側の再送を2回・3600秒に絞る。期間を絞るのは、18:00の締め切りが日付をまたいで再送され、翌日分を締め切ってしまうのを防ぐためでもある。Lambdaは同時実行ごとにプロセスが分かれコネクションプールを共有できないため、Neonは pooler エンドポイント（ホスト名に `-pooler` が付く方）を使い、GORM側も接続数を絞る。
 
 ## 7. アーキテクチャ・データ設計
 
@@ -109,20 +109,37 @@ flowchart LR
   A["Tauri アプリ"] -->|API| B["Backend API<br/>Lambda 関数URL + LWA + Go（Gin）"]
   W["ウィジェット"] -->|API| B
   B --> C[("Neon（PostgreSQL）")]
-  T["EventBridge Rule<br/>16:00 / 17:30 / 18:00"] -->|"API Destination<br/>X-Admin-Token"| B
+  T["EventBridge Scheduler<br/>16:00 / 17:30 / 18:00 JST"] -->|PutEvents| E["イベントバス<br/>ルール"]
+  E -->|"API Destination<br/>X-Admin-Token"| B
   B --> S["Slack Incoming Webhook"]
   B --> N["FCM プッシュ通知"]
   N --> A
 ```
 
-EventBridge の定時ルールが API Destination 経由でHTTPSリクエストを送り、
+EventBridge Scheduler が日本時間で定時にイベントバスへイベントを送り、
+バスのルールが API Destination 経由でHTTPSリクエストを送る。
 配信・リマインド・締め切りのたびにSlack投稿とプッシュ通知を行う。
-叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /admin/notifications`（リマインド）の2つで、
+叩くのは `PUT /admin/polls/today`（配信・締め切り）と `POST /admin/notifications`（リマインド）の2つで、
 どちらも `X-Admin-Token` で認証する。
 
-定時処理専用のエンドポイントは作らない。LWA には非HTTPイベントを `/events` へ流すパススルー機能があるが、
+| 時刻（JST） | Scheduler の cron | イベントの detail-type | 叩くAPI |
+| --- | --- | --- | --- |
+| 16:00 | `cron(0 16 * * ? *)` | poll-open | `PUT /admin/polls/today`（`{"status":"open"}`） |
+| 17:30 | `cron(30 17 * * ? *)` | reminder | `POST /admin/notifications`（未回答者） |
+| 18:00 | `cron(0 18 * * ? *)` | poll-close | `PUT /admin/polls/today`（`{"status":"closed"}`） |
+
+イベントの source は `meshi-iko.scheduler` とする（`aws.` で始まる名前は使えない）。
+ルールは detail-type ごとに1本ずつ作り、API Destination は2つ、接続（Connection）は1つを共有する。
+`X-Admin-Token` の値は接続のAPIキー認証に設定し、Secrets Manager に保存される。
+
+配信・締め切り用に `PUT /polls/{date}` とは別の、日付を受け取らないAPIを置く。
+Scheduler もルールも、URLに入れられるのはイベントの時刻（`2026-09-22T07:00:00Z` のようなUTCの日時）を丸ごとか、固定の文字だけで、
+JSTの日付（`2026-09-22`）を組み立てられないため。「今日」はサーバがJSTで決める。
+`PUT /polls/{date}` は、手動で特定の日を直すとき用に残す。
+
+Lambda を直接起動してイベントを受ける入口は作らない。LWA には非HTTPイベントを `/events` へ流すパススルー機能があるが、
 関数URLは公開されるため、そのパスも外から叩ける。パススルーではヘッダを付けられず `X-Admin-Token` が使えないので、
-鍵のかかっていない入口が増え、2つ目の認証を作ることになる。既存の管理用APIをHTTPSで叩けばその必要がない。
+鍵のかかっていない入口が増え、2つ目の認証を作ることになる。`X-Admin-Token` で守った管理用APIをHTTPSで叩けばその必要がない。
 
 **主要なデータ（エンティティ）**
 
@@ -141,7 +158,7 @@ EventBridge の定時ルールが API Destination 経由でHTTPSリクエスト�
 `polls.status` が3つあるのは、16:00の配信と18:00の締め切りという2回の遷移を区別する必要があるため
 （scheduled → open → closed）。2状態だと「受付中」と「締切」を区別できない。
 遷移はこの一方向だけで、戻す向き（closed → open など）は拒否する。
-行は `PUT /polls/{date}` が初回の遷移時に作る（upsert）ため事前のseedは不要で、
+行は `PUT /admin/polls/today` か `PUT /polls/{date}` が初回の遷移時に作る（upsert）ため事前のseedは不要で、
 行がない日は `GET /polls/{date}` が scheduled として返す。
 
 `answers.status` に undecided を含めるのは、「まだ答えていない」と「行けないと答えた」を
@@ -167,7 +184,8 @@ EventBridge の定時ルールが API Destination 経由でHTTPSリクエスト�
 | PUT /answers/me | Bearer | 当日の自分の回答を登録・更新（冪等） | F2, F3 |
 | GET /answers | Bearer | 指定日（省略時は今日）の全員の回答 | F8 |
 | GET /polls/{date} | Bearer | その日が配信前 / 受付中 / 締切のどれか | F6 |
-| PUT /polls/{date} | Admin | 配信・締め切りの切り替え（Cronから） | F6 |
+| PUT /polls/{date} | Admin | 指定日の配信・締め切りの切り替え（手動で直すとき用） | F6 |
+| PUT /admin/polls/today | Admin | 今日の配信・締め切りの切り替え（Schedulerから） | F6 |
 | POST /devices | Bearer | FCMの通知トークンを登録 | F5 |
 | POST /admin/notifications | Admin | プッシュ通知の送信（全員 / 未回答者） | F5 |
 
@@ -254,7 +272,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 無料枠の上限を超える | サービスが止まる | 10人規模なら AWS・Neon・FCM・Slack の無料枠で十分。FCMとSlackは課金設定をせず、AWSは請求アラートを設定しておく |
 | 期限まで4日で Must が8個ある | MVPが完成しない | 削る順番を決めておく：F4 → F5 → F7 の順に後回し |
 | userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。ログインのたびにトークンを再発行し以前のものを無効化するので、乗っ取られた側は端末から弾き出されて異変に気づける |
-| 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}` と `POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
+| 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}`・`PUT /admin/polls/today`・`POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
 
 参考：[iOS アプリの配布方法（Zenn）](https://zenn.dev/yusuga/articles/9e9b632e0338b2)、[日本におけるiOSの変更（Apple Developer）](https://developer.apple.com/jp/support/app-distribution-in-japan/)
 
@@ -269,7 +287,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 - [ ] 選択できる時間帯の範囲（例：17:00〜23:00）
   - 暫定：APIは00:00〜23:30の30分刻みをすべて受け付ける。範囲を絞るならクライアント側の選択肢で制限するか、サーバ側のバリデーションを足す
 - [ ] Slackに投稿するタイミングと内容（16:00配信時、18:00締め切り時、回答があるたび など）
-  - APIは未着手。Slack投稿は `PUT /polls/{date}` の副作用にするか、専用エンドポイントを足すかも未決
+  - APIは未着手。Slack投稿は `PUT /admin/polls/today` の副作用にするか、専用エンドポイントを足すかも未決
 - [x] データ設計はセクション7の案でよいか → devices を加えた4テーブルで確定（2026-09-20）
 
 **決定ログ**
@@ -293,7 +311,9 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-20 | `devices.device_token` は既存なら紐づけ先を付け替える（upsert） | 同じ端末で別アカウントにログインしたときの一意制約違反と誤配信を防ぐため |  |
 | 2026-09-21 | バックエンドの実行環境は AWS Lambda（関数URL＋Lambda Web Adapter）にする | LWAがAWS固有のイベント形式を吸収するので、ローカルと同じGin・GORMのコードをそのまま動かせるため |  |
 | 2026-09-21 | DBを Cloudflare D1 から Neon（PostgreSQL）に変える | 無料ホストのファイルシステムは揮発するためDBはマネージドに置く必要があり、D1には `database/sql` ドライバが無くGORMを捨てることになるため |  |
-| 2026-09-21 | 定時処理は EventBridge Rule ＋ API Destination から既存の管理用APIを叩く | 定時処理専用のエンドポイントを足すと、鍵のかかっていない入口が増え、`X-Admin-Token` とは別の認証を作ることになるため |  |
+| 2026-09-21 | 定時処理は EventBridge Rule ＋ API Destination から既存の管理用APIを叩く（2026-09-22 に Scheduler へ変更） | LWAのパススルー（`/events`）を入口にすると、鍵のかかっていない入口が増え、`X-Admin-Token` とは別の認証を作ることになるため |  |
 | 2026-09-21 | スキーマは Go の構造体（GORM の AutoMigrate）を正とし、SQLのマイグレーションファイルは持たない | 正を2つに分けるとズレるため。カラム削除やリネームが必要になった時点でマイグレーションツールを入れる |  |
 | 2026-09-21 | AutoMigrate はLambda起動時ではなく `cmd/migrate` から流す | 同時にコールドスタートするとDDLが競合し、毎回の起動も遅くなるため |  |
 | 2026-09-21 | テストは SQLite ではなく Postgres を立てて実行する | 回答のupsert（`ON CONFLICT`）など、本番と同じ方言で検証するため |  |
+| 2026-09-22 | 定時処理は EventBridge Rule から EventBridge Scheduler ＋ イベントバス ＋ API Destination に変える | 定時ルールはレガシーで、AWSは Scheduler を推奨しているため。Scheduler はHTTPSを直接叩けないのでバスを挟む。Lambdaを直接起動する方法は、LWAにHTTPの形のJSONを渡すという公式に案内されていない使い方になるため採らない |  |
+| 2026-09-22 | 定時処理からは日付を受け取らない `PUT /admin/polls/today` を叩き、「今日」はサーバがJSTで決める | Scheduler・ルールのどちらも、URLにJSTの日付を入れられないため（入れられるのはUTCの日時を丸ごとか、固定の文字だけ） |  |
