@@ -223,8 +223,8 @@ type LoginRequest struct {
 
 // LoginResponse defines model for LoginResponse.
 type LoginResponse struct {
-	// Token 新しく発行されたセッショントークン．
-	// ログインのたびに再発行され，以前のトークンは無効になる．
+	// Token この端末用に新しく発行されたセッショントークン．
+	// ほかの端末でログイン中のトークンは有効なまま．
 	//
 	//
 	// Example: 9f2c1d0b8a7e6f5d4c3b2a1908172635
@@ -256,7 +256,7 @@ type Poll struct {
 
 	// Status アンケートの状態．
 	// scheduled=配信前 / open=受付中 / closed=締切．
-	// 16:00に scheduled→open，18:00に open→closed をCronが切り替える．
+	// 16:00に scheduled→open，18:00に open→closed を EventBridge Scheduler が切り替える．
 	//
 	//
 	// Example: open
@@ -265,7 +265,7 @@ type Poll struct {
 
 // PollStatus アンケートの状態．
 // scheduled=配信前 / open=受付中 / closed=締切．
-// 16:00に scheduled→open，18:00に open→closed をCronが切り替える．
+// 16:00に scheduled→open，18:00に open→closed を EventBridge Scheduler が切り替える．
 //
 // Example: open
 type PollStatus string
@@ -343,7 +343,7 @@ type TimeSlots = []string
 type UpdatePollRequest struct {
 	// Status アンケートの状態．
 	// scheduled=配信前 / open=受付中 / closed=締切．
-	// 16:00に scheduled→open，18:00に open→closed をCronが切り替える．
+	// 16:00に scheduled→open，18:00に open→closed を EventBridge Scheduler が切り替える．
 	//
 	//
 	// Example: open
