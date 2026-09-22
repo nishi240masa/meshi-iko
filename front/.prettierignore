@@ -5,3 +5,4 @@ coverage
 src-tauri
 pnpm-lock.yaml
 src/routeTree.gen.ts
+src/generated/api.ts

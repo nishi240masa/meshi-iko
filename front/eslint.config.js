@@ -14,7 +14,13 @@ const configFiles = ["vite.config.ts", "eslint.config.js"];
 
 export default defineConfig([
   {
-    ignores: ["dist/**", "coverage/**", "src-tauri/**", "src/routeTree.gen.ts"],
+    ignores: [
+      "dist/**",
+      "coverage/**",
+      "src-tauri/**",
+      "src/routeTree.gen.ts",
+      "src/generated/api.ts",
+    ],
   },
 
   // React アプリ本体
