@@ -22,17 +22,23 @@ export function LoginForm() {
     }
 
     // ログインリクエスト
-    const { data, error } = await api.POST("/users/login", {
-      body: { name: result.data.name },
-    });
-    if (error) {
-      setErrorMessage("Login failed");
-      console.error("Login error:", error);
-    }
+    try {
+      const { data, error } = await api.POST("/users/login", {
+        body: { name: result.data.name },
+      });
+      if (error) {
+        setErrorMessage(error.message ?? "ログインに失敗しました");
+        console.error("Login error:", error);
+        return;
+      }
 
-    console.log("Login response:", data);
-    //ログイン成功時は投票ページに遷移
-    navigate({ to: "/vote" });
+      console.log("Login response:", data);
+      //ログイン成功時は投票ページに遷移
+      navigate({ to: "/vote" });
+    } catch (error) {
+      setErrorMessage("ログインに失敗しました");
+      console.error("Login request error:", error);
+    }
   };
   return (
     <form onSubmit={handleSubmit} className={styles.loginForm}>
