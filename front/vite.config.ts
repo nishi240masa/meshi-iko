@@ -2,14 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
-import { tanstackRouter } from '@tanstack/router-plugin/vite'
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [
     tanstackRouter({
-      target: 'react',
+      target: "react",
       autoCodeSplitting: true,
     }),
     react(),
