@@ -1,0 +1,7 @@
+# Ignore artifacts:
+node_modules
+dist
+coverage
+src-tauri
+pnpm-lock.yaml
+src/routeTree.gen.ts
