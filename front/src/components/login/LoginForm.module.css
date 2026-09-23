@@ -1,0 +1,35 @@
+.loginForm {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  > * {
+    width: 60%;
+  }
+  gap: 10px;
+}
+
+.formContainer {
+  min-width: 300px;
+}
+
+.formGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  > input {
+    flex-grow: 1;
+  }
+}
+
+.errorMessage {
+  margin-top: 3px;
+  text-align: end;
+  color: red;
+}
+
+.submitButton {
+  width: fit-content;
+  font-weight: bold;
+}
