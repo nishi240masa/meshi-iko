@@ -2,10 +2,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { api } from "../../lib/api";
-import styles from "./LoginForm.module.css";
-import { loginSchema } from "./LoginSchema";
+import styles from "./AuthForm.module.css";
+import { loginSchema } from "./AuthSchema";
 
-export function LoginForm() {
+export function AuthForm() {
   const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
