@@ -48,6 +48,12 @@ jobs:
       - name: Generate API types
         run: pnpm run generate:api
 
+      - name: Check generated API types are up to date
+        run: |
+          pnpm run generate:api
+          git diff --exit-code -- src/generated/api.ts \
+            || (echo "::error::openapi.yaml と src/generated/api.ts がずれています． pnpm run generate:api を実行してコミットしてください" && exit 1)
+
       - name: Lint
         run: pnpm run lint
 
