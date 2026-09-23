@@ -1,6 +1,8 @@
+import "./__root.css";
+
 import { createFileRoute } from "@tanstack/react-router";
 
-import { LoginForm } from "../components/login/LoginForm";
+import { AuthForm } from "../components/login/AuthForm";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -8,9 +10,9 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   return (
-    <div>
+    <div className="container">
       <h1>Login</h1>
-      <LoginForm />
+      <AuthForm />
     </div>
   );
 }

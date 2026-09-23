@@ -2,22 +2,47 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { api } from "../../lib/api";
-import styles from "./LoginForm.module.css";
-import { loginSchema } from "./LoginSchema";
+import styles from "./AuthForm.module.css";
+import { AuthSchema } from "./AuthSchema";
 
-export function LoginForm() {
+export function AuthForm() {
   const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const userName = formData.get("name");
-    const result = loginSchema.safeParse({ name: userName });
+
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement;
+    const action = submitter?.value; // 新規登録かログインかを判定
+
+    const result = AuthSchema.safeParse({ name: userName });
     if (result.success) {
       console.log("Name:", result.data.name);
     } else {
       setErrorMessage(result.error.issues[0].message ?? "不正な入力です");
       console.error("Validation error:", result.error);
+      return;
+    }
+
+    // 新規登録リクエスト
+    if (action === "register") {
+      try {
+        const { data, error } = await api.POST("/users", {
+          body: { name: result.data.name },
+        });
+        if (error) {
+          setErrorMessage(error.message ?? "新規登録に失敗しました");
+          console.error("Register error:", error);
+          return;
+        }
+        console.log("Register response:", data);
+        // 新規登録成功時はログインページに遷移
+        navigate({ to: "/login" });
+      } catch (error) {
+        setErrorMessage("新規登録に失敗しました");
+        console.error("Register request error:", error);
+      }
       return;
     }
 
@@ -44,14 +69,21 @@ export function LoginForm() {
     <form onSubmit={handleSubmit} className={styles.loginForm}>
       <div className={styles.formContainer}>
         <div className={styles.formGroup}>
-          <label htmlFor="name">name</label>
-          <input type="text" name="name" id="name" />
+          <label htmlFor="name" className={styles.label}>
+            name
+          </label>
+          <input type="text" name="name" id="name" className={styles.input} />
         </div>
         {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
       </div>
-      <button type="submit" className={styles.submitButton}>
-        Login
-      </button>
+      <div className={styles.buttonContainer}>
+        <button type="submit" name="action" value="register" className={styles.submitButton}>
+          新規登録
+        </button>
+        <button type="submit" name="action" value="login" className={styles.submitButton}>
+          Login
+        </button>
+      </div>
     </form>
   );
 }
