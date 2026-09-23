@@ -78,7 +78,8 @@ export interface paths {
         put?: never;
         /**
          * ユーザーログアウト
-         * @description いま使っているトークンを無効化する．
+         * @description いま使っているセッションと，この端末の通知の宛先を消す．
+         *     ほかの端末のセッションには影響しない．
          *     再びログインすると新しいトークンが発行される．
          */
         post: operations["logoutUser"];
@@ -190,7 +191,8 @@ export interface paths {
         get: operations["getPoll"];
         /**
          * アンケート状態の更新（管理者用）
-         * @description Cronから呼び出し，16:00の配信（open）と18:00の締め切り（closed）を切り替える．
+         * @description 指定日の配信（open）と締め切り（closed）を切り替える．手動で特定の日を直すとき用．
+         *     定時の配信・締め切りは，EventBridge Scheduler が `PUT /admin/polls/today` で行う．
          *     同じ状態を二重に送っても結果が変わらないよう冪等にする．
          *
          *     pollの行がまだない日に呼ばれたときは，その日の行を作ってから遷移させる（upsert）．
@@ -243,7 +245,7 @@ export interface paths {
         /**
          * プッシュ通知送信
          * @description 管理者用．プッシュ通知を送信する．
-         *     Cronなどサーバ間の呼び出しを想定し，ユーザートークンとは別の管理用トークンで認証する．
+         *     EventBridge Scheduler などサーバ間の呼び出しを想定し，ユーザートークンとは別の管理用トークンで認証する．
          */
         post: operations["sendNotification"];
         delete?: never;
@@ -336,7 +338,7 @@ export interface components {
         /**
          * @description アンケートの状態．
          *     scheduled=配信前 / open=受付中 / closed=締切．
-         *     16:00に scheduled→open，18:00に open→closed をCronが切り替える．
+         *     16:00に scheduled→open，18:00に open→closed を EventBridge Scheduler が切り替える．
          * @example open
          * @enum {string}
          */
@@ -386,8 +388,8 @@ export interface components {
         LoginResponse: {
             user: components["schemas"]["User"];
             /**
-             * @description 新しく発行されたセッショントークン．
-             *     ログインのたびに再発行され，以前のトークンは無効になる．
+             * @description この端末用に新しく発行されたセッショントークン．
+             *     ほかの端末でログイン中のトークンは有効なまま．
              * @example 9f2c1d0b8a7e6f5d4c3b2a1908172635
              */
             token: string;
