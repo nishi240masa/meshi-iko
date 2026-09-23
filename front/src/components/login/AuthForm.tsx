@@ -12,7 +12,10 @@ export function AuthForm() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const userName = formData.get("name");
-    const action = formData.get("action"); // 新規登録かログインかを判定
+
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement;
+    const action = submitter?.value; // 新規登録かログインかを判定
+
     const result = AuthSchema.safeParse({ name: userName });
     if (result.success) {
       console.log("Name:", result.data.name);
@@ -40,6 +43,7 @@ export function AuthForm() {
         setErrorMessage("新規登録に失敗しました");
         console.error("Register request error:", error);
       }
+      return;
     }
 
     // ログインリクエスト
@@ -73,10 +77,10 @@ export function AuthForm() {
         {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
       </div>
       <div className={styles.buttonContainer}>
-        <button type="submit" value="register" className={styles.submitButton}>
+        <button type="submit" name="action" value="register" className={styles.submitButton}>
           新規登録
         </button>
-        <button type="submit" value="login" className={styles.submitButton}>
+        <button type="submit" name="action" value="login" className={styles.submitButton}>
           Login
         </button>
       </div>
