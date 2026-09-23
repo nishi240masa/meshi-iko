@@ -65,12 +65,14 @@ export function AuthForm() {
     <form onSubmit={handleSubmit} className={styles.loginForm}>
       <div className={styles.formContainer}>
         <div className={styles.formGroup}>
-          <label htmlFor="name">name</label>
-          <input type="text" name="name" id="name" />
+          <label htmlFor="name" className={styles.label}>
+            name
+          </label>
+          <input type="text" name="name" id="name" className={styles.input} />
         </div>
         {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
       </div>
-      <div>
+      <div className={styles.buttonContainer}>
         <button type="submit" value="register" className={styles.submitButton}>
           新規登録
         </button>
