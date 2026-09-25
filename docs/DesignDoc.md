@@ -102,7 +102,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 
 ※1 Cloudflare Workers は Go（Gin）をそのまま動かせない（WebAssembly経由の限定的なサポートのみ）。「Go を別の無料ホストで動かしD1をREST APIで使う」か「Workers上を TypeScript（Hono）で書く」かを決める必要がある（未決事項）。Cron Triggers の時刻はUTC指定なので、16:00 JST は `0 7 * * *` になる。
 
-※2　iOSウィジェット作成に用いるScriptableは「Your privacy is critcally important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
+※2　iOSウィジェット作成に用いるScriptableは「Your privacy is critically important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
 https://scriptable.app/privacy-policy/
 
 ## 7. アーキテクチャ・データ設計
