@@ -89,8 +89,8 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 
 | レイヤー | 採用技術 | 選定理由 | 検討した他の候補 |
 | --- | --- | --- | --- |
-| フロントエンド | Flutter | 1つのコードでAndroidアプリとiPhone向けWeb版（PWA）を作れる。学習コストが低い | Tauri / React Native |
-| ウィジェット | Kotlin（Glance）+ home\_widget パッケージ（Androidのみ。iPhoneはショートカットで代替） | Flutterだけではウィジェットを書けないため、各OSのネイティブコードが必要 |  |
+| フロントエンド | Tauri / React | ネイティブアプリとWebアプリを一括で作れるため |  |
+| ウィジェット | Kotlin（Glance）+ Scriptable | Tauri/React だけではウィジェットを書けないため、各OSのネイティブコードが必要、iOSはScriptableで対応 |  |
 | バックエンド / API | Go（Gin） | 高性能でスケーラブルなサーバー開発に適している | Node.js / Python |
 | データベース | Neon（PostgreSQL） | サーバーレスのマネージドPostgreSQL。無料枠（ストレージ0.5GB・月100CU時間）で10人規模なら十分に足りる。`database/sql` がそのまま使えるのでGORMを変えずに済む | Cloudflare D1 / Turso / Supabase / AWS RDS |
 | 認証 | 自前（userID＋セッショントークン） | 簡単なIDで登録・ログインできる。利用者向けはBearerトークン、Cron等の管理用は `X-Admin-Token` に分離 | Firebase / Auth0 / Google Sign-In |
@@ -99,6 +99,9 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | 通知 | FCM（Firebase Cloud Messaging） | iOS / Android 両方に無料でプッシュ通知できる | Slack DMで代替 |
 | CI/CD | GitHub Actions | GitHubと連携して自動化できる | Jenkins / Travis CI / Argo |
 | 開発ツール | GitHub（Issues / Projects） | コード管理・タスク管理を一元化できる | GitLab / Bitbucket |
+
+iOSウィジェット作成に用いるScriptableは「Your privacy is critically important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
+https://scriptable.app/privacy-policy/
 
 注意が2つある。API Destination は5秒でタイムアウトし、失敗すると既定で最大24時間・185回まで再送する。401や409も再送の対象なので、設定ミスや逆向きの遷移で叩かれ続けないよう、ルール側の再送を2回・3600秒に絞る。期間を絞るのは、18:00の締め切りが日付をまたいで再送され、翌日分を締め切ってしまうのを防ぐためでもある。Lambdaは同時実行ごとにプロセスが分かれコネクションプールを共有できないため、Neonは pooler エンドポイント（ホスト名に `-pooler` が付く方）を使い、GORM側も接続数を絞る。
 
@@ -244,8 +247,8 @@ devices をセッションに紐づけるのは、ログアウトした端末に
 | メンバー | 担当領域 | 主な機能 | 9/19〜9/23 に使える時間 |
 | --- | --- | --- | --- |
 |  | バックエンドAPI・DB設計・定時処理（Cron） | F1, F2, F3, F8 のAPI、F6 |  |
-|  | Flutterアプリ（登録・回答・結果画面）・配布（PWA / APK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
-|  | 外部連携（Slack、プッシュ通知）・ウィジェット（Kotlin） | F7, F5, F4（この順に着手） |  |
+|  | Tauri / Reactアプリ（登録・回答・結果画面）・配布（iPhoneはPWA、AndroidはAPK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
+|  | 外部連携（Slack、プッシュ通知）・ウィジェット（Scriptable,Kotlin） | F7, F5, F4（この順に着手） |  |
 
 **開発ルール**
 
@@ -266,13 +269,13 @@ devices をセッションに紐づけるのは、ログアウトした端末に
 
 **リスクと対策**
 
-Apple Developer Program に登録しないため、iPhoneにはネイティブアプリを配らず、Web版（PWA）＋Slack通知＋ショートカットで同じ体験に近づける。Androidはこれまでどおりネイティブアプリ。
+Apple Developer Program に登録しないため、iPhoneにはネイティブアプリを配らず、Web版（PWA）＋Slack通知＋Scriptableウィジェットで同じ体験に近づける。Androidはこれまでどおりネイティブアプリ。
 
 **iPhoneへの配布方法の比較（有料登録なし）**
 
 | 方法 | 費用 | 通知 | ウィジェット相当 | 判断 |
 | --- | --- | --- | --- | --- |
-| PWA（Flutter Web を Cloudflare Pages でホストし、ホーム画面に追加） | 無料 | Webプッシュ（iOS 16.4以降、ホーム画面に追加した場合のみ） | ショートカットで代替 | 採用。URLを送るだけで配れ、更新も自動 |
+| PWA（Tauriで共通利用するReactフロントをCloudflare Pagesでホストし、ホーム画面に追加） | 無料 | Webプッシュ（iOS 16.4以降、ホーム画面に追加した場合のみ） | Scriptableで対応 | 採用。URLを送るだけで配れ、更新も自動 |
 | Slack で回答・通知（ボタン付きメッセージ） | 無料 | Slackの通知 | Slackの通知から直接回答 | 採用（リマインドと回答の補助） |
 | 無料のApple IDでXcodeから直接インストール | 無料 | プッシュ通知は不可 | 一部制限あり | 不採用。7日ごとに再インストールが必要で、友人ごとにMacへ接続する手間がある |
 | TestFlight / AdHoc / 非表示アプリ など | 有料登録が必要 | — | — | 不採用 |
@@ -283,7 +286,7 @@ Apple Developer Program に登録しないため、iPhoneにはネイティブ�
 1. 招待URLを Safari で開き、「ホーム画面に追加」する（アイコンから全画面で起動できる）
 2. 初回だけ userID を登録し、通知を許可する
 3. 回答は「アプリ」か「Slackのボタン」のどちらからでもできる
-4. ウィジェットの代わりに、ショートカットアプリで「行ける」「行けない」をAPIに送るショートカットを配布し、ホーム画面のショートカットウィジェットに置く（Should）
+4. ウィジェットを使う場合は、Scriptable（App Storeで無料）をインストールし、配布するスクリプトを読み込んでログインしたうえで、ホーム画面にScriptableウィジェットを置く（Should）
 
 Androidは APK を GitHub Releases などで配れば、無料でネイティブアプリ（通知・ウィジェット込み）が使える。
 
@@ -292,8 +295,8 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | リスク | 影響 | 対策 |
 | --- | --- | --- |
 | iPhoneのWebプッシュはホーム画面に追加しないと届かず、届かない人も出やすい | リマインドを見逃す | リマインドと結果はSlackでも送る（F5・F7をSlackで兼ねる） |
-| iPhoneではネイティブのウィジェットが作れない | F4がiPhoneで実現できない | F4はAndroidのみ。iPhoneはショートカットウィジェットで代替 |
-| Flutter Web は初回表示が重め | 開くのが面倒で回答率が下がる | 回答画面を最初に表示し、画面数を最小にする |
+| iPhoneのウィジェットはScriptable経由のため、利用者にアプリ導入とスクリプト読み込みの手間がかかる。またウィジェット上にボタンを置けず、タップでスクリプトを開く操作になる | 導入されず使われない／ウィジェットから直接回答できない | 導入手順を画像付きで用意する。ウィジェットは概要表示に絞り、回答はタップ後のScriptableの画面かPWAで行う |
+| React Web（PWA）は初回表示が重め | 開くのが面倒で回答率が下がる | 回答画面を最初に表示し、画面数を最小にする |
 | AWS（ECR / IAM / Lambda）の初期設定に手こずる | デプロイできず9/23に間に合わない | LWAはイメージに同梱するだけなので、同じイメージは普通のホストでもそのまま動く。詰まったらKoyebやRenderに同じイメージを投げて逃げる |
 | Lambdaが同時実行ごとにNeonへ接続を張り、接続数の上限に当たる | APIが5xxを返す | Neonの pooler エンドポイントを使い、GORM側も `MaxOpenConns` を絞る |
 | 無料枠の上限を超える | サービスが止まる | 10人規模なら AWS・Neon・FCM・Slack の無料枠で十分。FCMとSlackは課金設定をせず、AWSは請求アラートを設定しておく |
@@ -321,12 +324,12 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 
 | 日付 | 決定内容 | 理由 | 決めた人 |
 | --- | --- | --- | --- |
-| 2026-09-19 | AndroidフロントエンドのみTauriに変更（iPhoneはFlutter Web PWA継続） | Android側での実装方針を切り替え、iPhoneの配布方針は維持するため |  |
+| 2026-09-19 | フロントエンドをTauri / Reactに変更（iPhoneは同一ReactをPWAとして配布） | AndroidはTauriで実装しつつ、iPhoneは同一フロントをPWAで配布して運用を統一するため |  |
 | 2026-09-19 | DBはCloudflare D1 | 小規模で無料 |  |
 | 2026-09-19 | 認証はメール・パスワードを使わず自前のuserIDのみ | 友人内で手軽に使うため |  |
 | 2026-09-19 | ストア公開・多言語対応はしない | 利用者が友人10人程度のため |  |
 | 2026-09-19 | 開発・運用は無料を基本とする | 友人内の小規模サービスのため |  |
-| 2026-09-19 | Apple Developer Programには登録しない。iPhoneはPWA＋Slack＋ショートカットで対応 | 完全無料で運用するため |  |
+| 2026-09-19 | Apple Developer Programには登録しない。iPhoneはPWA＋Slackで対応 | 完全無料で運用するため |  |
 | 2026-09-20 | API仕様は `back/api/openapi.yaml` を正とし、Goのコードは oapi-codegen で生成する | 仕様と実装のズレをコンパイラに検出させるため |  |
 | 2026-09-20 | 回答は `PUT /answers/me` とし、対象日と回答者はリクエストで受け取らない | 冪等にして二重送信を安全にし、端末の時計・タイムゾーンに依存させないため |  |
 | 2026-09-20 | 集計専用APIは作らず、`GET /answers` の全件からクライアントが集計する | 10人規模では集計APIを別に持つ方が整合を保つ手間が大きいため |  |
@@ -350,3 +353,5 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-22 | 通知の宛先はログインAPIに同梱せず、`POST /devices` で起動時・許可直後・変更時に送る | Firebaseの推奨が「起動時と変更時に送る」であり、iPhoneのPWAではログインの時点で通知の許可（＝FID）が無いことが多いため |  |
 | 2026-09-22 | 一斉送信はトピック配信を使わず、DBから引いたFIDに `SendEachForMulticast` で送る | FIDはトピックに登録できず、「未回答者だけ」の絞り込みもトピックではできないため。Firebaseも少人数には個別の宛先への送信を勧めている |  |
 | 2026-09-22 | `os_type` は Android / web にする | iPhoneはネイティブアプリではなくPWAのWebプッシュで通知を受けるため |  |
+| 2026-09-25 | iPhoneのウィジェットはショートカットではなくScriptableで実装する | 無料・登録不要でホーム画面に回答状況を表示でき、個人情報も収集されないため（※2参照） |  |
+
