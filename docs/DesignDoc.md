@@ -197,7 +197,7 @@ Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /
 | メンバー | 担当領域 | 主な機能 | 9/19〜9/23 に使える時間 |
 | --- | --- | --- | --- |
 |  | バックエンドAPI・DB設計・定時処理（Cron） | F1, F2, F3, F8 のAPI、F6 |  |
-|  | Flutterアプリ（登録・回答・結果画面）・配布（PWA / APK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
+|  | Tauriアプリ（登録・回答・結果画面）・配布（PWA / APK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
 |  | 外部連携（Slack、プッシュ通知）・ウィジェット（Scriptable,Kotlin） | F7, F5, F4（この順に着手） |  |
 
 **開発ルール**
