@@ -1,6 +1,6 @@
 # メシイコ デザインドック
 
-作成 2026-09-19 / 最終更新 2026-09-20
+作成 2026-09-19 / 最終更新 2026-09-22
 
 API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Truth）。
 このドックはその背景と決定理由を残す。両者が食い違った場合は openapi.yaml を優先する。
@@ -82,7 +82,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | パフォーマンス | アプリの結果表示は1分ごとに更新。ウィジェットはOSの更新回数制限があるため、リアルタイムではなく「回答時・アプリ起動時に即更新＋定期更新」を目標にする |
 | セキュリティ | 基本的な個人情報以外は扱わない。利用者向けAPIは `Authorization: Bearer <セッショントークン>` で認証する。Cronなどサーバ間から叩く管理用APIは、取り違えを防ぐため別ヘッダ `X-Admin-Token` で認証する。ただしログインはuserIDのみで通るため、なりすまし自体は防げない（セクション9のリスク参照） |
 | 可用性・バックアップ | 本番運用後に次フェーズで検討 |
-| 運用コスト | 完全無料。Apple Developer Program（有料）には登録しない |
+| 運用コスト | ほぼ無料（ECRのイメージ保管料が月十数円）。Apple Developer Program（有料）には登録しない |
 | タイムゾーン | すべて日本時間（JST）で扱う |
 
 ## 6. 技術スタック
@@ -92,10 +92,10 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | フロントエンド | Tauri / React | ネイティブアプリとWebアプリを一括で作れるため |  |
 | ウィジェット | Kotlin（Glance）+ Scriptable | Tauri/React だけではウィジェットを書けないため、各OSのネイティブコードが必要、iOSはScriptableで対応 |  |
 | バックエンド / API | Go（Gin） | 高性能でスケーラブルなサーバー開発に適している | Node.js / Python |
-| データベース | Cloudflare D1（SQLite） | 小規模アプリに適していて無料 | AWS RDS / Supabase / Firebase |
+| データベース | Neon（PostgreSQL） | サーバーレスのマネージドPostgreSQL。無料枠（ストレージ0.5GB・月100CU時間）で10人規模なら十分に足りる。`database/sql` がそのまま使えるのでGORMを変えずに済む | Cloudflare D1 / Turso / Supabase / AWS RDS |
 | 認証 | 自前（userID＋セッショントークン） | 簡単なIDで登録・ログインできる。利用者向けはBearerトークン、Cron等の管理用は `X-Admin-Token` に分離 | Firebase / Auth0 / Google Sign-In |
-| インフラ・ホスティング | Cloudflare | 無料で利用可能 | AWS EC2 |
-| 定時処理 | Cloudflare Cron Triggers | 16:00配信・17:30リマインド・18:00締め切りを実行 | GitHub Actions の schedule |
+| インフラ・ホスティング | AWS Lambda（関数URL）＋ Lambda Web Adapter ＋ ECR | LWAがAWS固有のイベント形式を吸収するので、ローカルと同じGinのコードがそのまま動く。関数URLはAPI Gatewayを挟まないぶん安く、スリープもない | Cloudflare Workers / Koyeb / Render / AWS EC2 |
+| 定時処理 | EventBridge Scheduler ＋ イベントバス ＋ API Destination | AWSが定時実行に推奨するScheduler を使い、日本時間でcronを書ける。SchedulerはHTTPSを直接叩けないため、イベントバスのルールからAPI Destinationで管理用APIへ `X-Admin-Token` 付きのリクエストを送る | EventBridge Rule（レガシー）＋ API Destination / Scheduler から Lambda を直接起動 / Cloudflare Cron Triggers / GitHub Actions の schedule |
 | 通知 | FCM（Firebase Cloud Messaging） | iOS / Android 両方に無料でプッシュ通知できる | Slack DMで代替 |
 | CI/CD | GitHub Actions | GitHubと連携して自動化できる | Jenkins / Travis CI / Argo |
 | 開発ツール | GitHub（Issues / Projects） | コード管理・タスク管理を一元化できる | GitLab / Bitbucket |
@@ -105,50 +105,101 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 ※2　iOSウィジェット作成に用いるScriptableは「Your privacy is critically important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
 https://scriptable.app/privacy-policy/
 
+注意が2つある。API Destination は5秒でタイムアウトし、失敗すると既定で最大24時間・185回まで再送する。401や409も再送の対象なので、設定ミスや逆向きの遷移で叩かれ続けないよう、ルール側の再送を2回・3600秒に絞る。期間を絞るのは、18:00の締め切りが日付をまたいで再送され、翌日分を締め切ってしまうのを防ぐためでもある。Lambdaは同時実行ごとにプロセスが分かれコネクションプールを共有できないため、Neonは pooler エンドポイント（ホスト名に `-pooler` が付く方）を使い、GORM側も接続数を絞る。
+
 ## 7. アーキテクチャ・データ設計
 
 ```mermaid
 flowchart LR
-  A["Tauri アプリ"] -->|API| B["Backend API"]
+  A["Tauri アプリ"] -->|API| B["Backend API<br/>Lambda 関数URL + LWA + Go（Gin）"]
   W["ウィジェット"] -->|API| B
-  B --> C[("Cloudflare D1")]
-  T["Cron Triggers<br/>16:00 / 17:30 / 18:00"] --> B
+  B --> C[("Neon（PostgreSQL）")]
+  T["EventBridge Scheduler<br/>16:00 / 17:30 / 18:00 JST"] -->|PutEvents| E["イベントバス<br/>ルール"]
+  E -->|"API Destination<br/>X-Admin-Token"| B
   B --> S["Slack Incoming Webhook"]
   B --> N["FCM プッシュ通知"]
   N --> A
 ```
 
-CronがAPIを起動し、配信・リマインド・締め切りのたびにSlack投稿とプッシュ通知を行う。
-Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /admin/notifications`（リマインド）の2つで、
+EventBridge Scheduler が日本時間で定時にイベントバスへイベントを送り、
+バスのルールが API Destination 経由でHTTPSリクエストを送る。
+配信・リマインド・締め切りのたびにSlack投稿とプッシュ通知を行う。
+叩くのは `PUT /admin/polls/today`（配信・締め切り）と `POST /admin/notifications`（リマインド）の2つで、
 どちらも `X-Admin-Token` で認証する。
+
+| 時刻（JST） | Scheduler の cron | イベントの detail-type | 叩くAPI |
+| --- | --- | --- | --- |
+| 16:00 | `cron(0 16 * * ? *)` | poll-open | `PUT /admin/polls/today`（`{"status":"open"}`） |
+| 17:30 | `cron(30 17 * * ? *)` | reminder | `POST /admin/notifications`（未回答者） |
+| 18:00 | `cron(0 18 * * ? *)` | poll-close | `PUT /admin/polls/today`（`{"status":"closed"}`） |
+
+イベントの source は `meshi-iko.scheduler` とする（`aws.` で始まる名前は使えない）。
+ルールは detail-type ごとに1本ずつ作り、API Destination は2つ、接続（Connection）は1つを共有する。
+`X-Admin-Token` の値は接続のAPIキー認証に設定し、Secrets Manager に保存される。
+
+配信・締め切り用に `PUT /polls/{date}` とは別の、日付を受け取らないAPIを置く。
+Scheduler もルールも、URLに入れられるのはイベントの時刻（`2026-09-22T07:00:00Z` のようなUTCの日時）を丸ごとか、固定の文字だけで、
+JSTの日付（`2026-09-22`）を組み立てられないため。「今日」はサーバがJSTで決める。
+`PUT /polls/{date}` は、手動で特定の日を直すとき用に残す。
+
+Lambda を直接起動してイベントを受ける入口は作らない。LWA には非HTTPイベントを `/events` へ流すパススルー機能があるが、
+関数URLは公開されるため、そのパスも外から叩ける。パススルーではヘッダを付けられず `X-Admin-Token` が使えないので、
+鍵のかかっていない入口が増え、2つ目の認証を作ることになる。`X-Admin-Token` で守った管理用APIをHTTPSで叩けばその必要がない。
 
 **主要なデータ（エンティティ）**
 
 
 元の案（User / date / today / count / statistics）は、集計値を別テーブルに持つと回答変更のたびに更新漏れが起きやすい。
-集計値は持たず、人数は `answers` から都度集計する。プッシュ通知の宛先を保持する `devices` を加えた4テーブル構成とする。
+集計値は持たず、人数は `answers` から都度集計する。プッシュ通知の宛先を保持する `devices` と、ログイン中の端末ごとのセッションを保持する `sessions` を加えた5テーブル構成とする。
 
 | テーブル | 主な項目 | 関連 |
 | --- | --- | --- |
-| users | id（自動採番）, name（一意）, token, created\_at | answers を複数持つ |
+| users | id（自動採番）, name（一意）, created\_at | sessions・answers・devices を複数持つ |
+| sessions | id（自動採番）, user\_id, token（一意）, created\_at | users に属する。devices を持つ |
 | polls | date（主キー）, status（scheduled / open / closed）, opened\_at, closed\_at | その日の answers を持つ |
 | answers | user\_id, date, status（undecided / available / unavailable）, time\_slots（例：\["18:00","18:30"\] のJSON）, updated\_at。主キーは (user\_id, date) | users と polls に属する |
-| devices | user\_id, device\_token（一意）, os\_type（iOS / Android）, created\_at | users に属する |
+| devices | fid（主キー）, user\_id, session\_id, os\_type（Android / web）, created\_at, updated\_at | users と sessions に属する |
 
 
 `polls.status` が3つあるのは、16:00の配信と18:00の締め切りという2回の遷移を区別する必要があるため
 （scheduled → open → closed）。2状態だと「受付中」と「締切」を区別できない。
 遷移はこの一方向だけで、戻す向き（closed → open など）は拒否する。
-行は `PUT /polls/{date}` が初回の遷移時に作る（upsert）ため事前のseedは不要で、
+行は `PUT /admin/polls/today` か `PUT /polls/{date}` が初回の遷移時に作る（upsert）ため事前のseedは不要で、
 行がない日は `GET /polls/{date}` が scheduled として返す。
 
 `answers.status` に undecided を含めるのは、「まだ答えていない」と「行けないと答えた」を
 区別するため。F5のリマインドは前者だけに送る。
 
-`devices.device_token` はFCMが端末ごとに発行するので全体で一意にする。
-`POST /devices` は既存のトークンが送られたら紐づけ先を送信元のユーザーに付け替える（upsert）。
+1人が複数の端末（AndroidアプリとPC・iPhoneのPWAなど）から同時に使えるようにする。
+セッションは端末ごとに1行で、ログインのたびに1行増え、ほかの端末のセッションは消さない。
+ログアウトは、いま使っているセッションだけを消す。
+
+`devices.fid` は通知の宛先で、FCMが端末（アプリのインストール）ごとに発行する Firebase Installation ID（FID）を保存する。
+FCMの登録トークン（`getToken()`）は2026年に非推奨になり、送信側の Go Admin SDK も v4.21.0 で `Token` を非推奨にして `Fid` を足したため、最初からFIDを使う。
+FIDは全体で一意なので主キーにする。
+
+`POST /devices` は、アプリの起動時・通知を許可した直後・FIDが変わったとき（`onRegistered()`）に呼ぶ。
+既存のFIDが送られたら、紐づけ先のユーザーとセッションを送信元のものに付け替え、`updated_at` を更新する（upsert）。
 同じ端末で別アカウントにログインし直したときに、一意制約で失敗したり
 前のユーザーに新しいユーザーの通知が届いたりするのを防ぐため。
+
+devices をセッションに紐づけるのは、ログアウトした端末に通知が届き続けるのを防ぐため。
+セッションを消すと、その端末の devices も一緒に消す。クライアントはログアウト時にFIDを送らなくてよく、
+同じユーザーのほかの端末への通知は止まらない。
+ログイン時にFIDを一緒に送る形にはしない。iPhoneのPWAでは通知の許可がユーザーのタップでしか求められず、
+ログインの時点でFIDがまだ無いことが多いため。
+
+送信時に FCM が `UNREGISTERED`（404）か `INVALID_ARGUMENT`（400）を返したら、そのFIDはもう使えないので行を消す。
+`updated_at` は、長く更新されていない行を掃除する必要が出たときの判断材料として持つ（FCMは1か月接続の無い端末を古いとみなす）。
+
+一斉送信（全員 / 未回答者）はFCMのトピック配信を使わず、DBから宛先のFIDを引いて `SendEachForMulticast`（`Fids` を指定、1回500件まで）で送る。
+トピックへの登録（`SubscribeToTopic`）は登録トークンしか受け付けずFIDでは使えないうえ、「未回答者だけ」のような絞り込みもできないため。
+結果は宛先ごとに返るので、`IsUnregistered` のものはその場で行を消す。
+
+フロント側の注意：FIDの取得は `register()` / `onRegistered()` だけで行い、非推奨の `getToken()` は呼ばない。
+混ぜると後から古い方式の登録が上書きし、FIDが送信先として無効になる（JS SDK 12.15〜12.16で報告あり）。
+`onRegistered()` のコールバックは1つしか持てないので、登録する場所を1か所にする。
+ログアウト時の `unregister()` は不要（サーバ側でセッションごと devices を消すため）。
 
 **主要なAPI**
 
@@ -158,15 +209,16 @@ Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /
 | --- | --- | --- | --- |
 | GET /health | なし | プロセスとDB接続の死活確認 | — |
 | POST /users | なし | userIDを登録し、セッショントークンを返す | F1 |
-| POST /users/login | なし | 登録済みのuserIDでログインし、トークンを再発行 | F1 |
-| POST /users/logout | Bearer | いま使っているトークンを無効化 | F1 |
+| POST /users/login | なし | 登録済みのuserIDでログインし、この端末用のセッショントークンを発行（ほかの端末のセッションは残す） | F1 |
+| POST /users/logout | Bearer | いま使っているセッションと、それに紐づく devices を消す | F1 |
 | GET /users/me | Bearer | ログイン中のユーザー情報 | F1 |
 | GET /users/{userId} | Bearer | 指定ユーザーの情報 | — |
 | PUT /answers/me | Bearer | 当日の自分の回答を登録・更新（冪等） | F2, F3 |
 | GET /answers | Bearer | 指定日（省略時は今日）の全員の回答 | F8 |
 | GET /polls/{date} | Bearer | その日が配信前 / 受付中 / 締切のどれか | F6 |
-| PUT /polls/{date} | Admin | 配信・締め切りの切り替え（Cronから） | F6 |
-| POST /devices | Bearer | FCMの通知トークンを登録 | F5 |
+| PUT /polls/{date} | Admin | 指定日の配信・締め切りの切り替え（手動で直すとき用） | F6 |
+| PUT /admin/polls/today | Admin | 今日の配信・締め切りの切り替え（Schedulerから） | F6 |
+| POST /devices | Bearer | 通知の宛先（FID）をいまのセッションに紐づけて登録・更新 | F5 |
 | POST /admin/notifications | Admin | プッシュ通知の送信（全員 / 未回答者） | F5 |
 
 設計上の判断：
@@ -247,24 +299,27 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | iPhoneのWebプッシュはホーム画面に追加しないと届かず、届かない人も出やすい | リマインドを見逃す | リマインドと結果はSlackでも送る（F5・F7をSlackで兼ねる） |
 | iPhoneのウィジェットはScriptable経由のため、利用者にアプリ導入とスクリプト読み込みの手間がかかる。またウィジェット上にボタンを置けず、タップでスクリプトを開く操作になる | 導入されず使われない／ウィジェットから直接回答できない | 導入手順を画像付きで用意する。ウィジェットは概要表示に絞り、回答はタップ後のScriptableの画面かPWAで行う |
 | React Web（PWA）は初回表示が重め | 開くのが面倒で回答率が下がる | 回答画面を最初に表示し、画面数を最小にする |
-| Cloudflare Workers で Go（Gin）が動かない | バックエンドの作り直し | 無料で完結させるならWorkers上をTypeScript（Hono）で書くのが最も確実。Goを使う場合は無料で常時動かせるホストを9/19中に探す |
-| 無料枠の上限を超える | サービスが止まる | 10人規模なら Cloudflare・FCM・Slack の無料枠で十分。念のため各サービスで課金設定をしない |
+| AWS（ECR / IAM / Lambda）の初期設定に手こずる | デプロイできず9/23に間に合わない | LWAはイメージに同梱するだけなので、同じイメージは普通のホストでもそのまま動く。詰まったらKoyebやRenderに同じイメージを投げて逃げる |
+| Lambdaが同時実行ごとにNeonへ接続を張り、接続数の上限に当たる | APIが5xxを返す | Neonの pooler エンドポイントを使い、GORM側も `MaxOpenConns` を絞る |
+| 無料枠の上限を超える | サービスが止まる | 10人規模なら AWS・Neon・FCM・Slack の無料枠で十分。FCMとSlackは課金設定をせず、AWSは請求アラートを設定しておく |
 | 期限まで4日で Must が8個ある | MVPが完成しない | 削る順番を決めておく：F4 → F5 → F7 の順に後回し |
-| userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。ログインのたびにトークンを再発行し以前のものを無効化するので、乗っ取られた側は端末から弾き出されて異変に気づける |
-| 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}` と `POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
+| userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。複数端末でのログインを許すため、乗っ取られても元の端末は追い出されず、本人は気づきにくい |
+| 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}`・`PUT /admin/polls/today`・`POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
 
 参考：[iOS アプリの配布方法（Zenn）](https://zenn.dev/yusuga/articles/9e9b632e0338b2)、[日本におけるiOSの変更（Apple Developer）](https://developer.apple.com/jp/support/app-distribution-in-japan/)
 
 **未決事項**
 
-- [ ] バックエンドの実行環境：Workers上をTypeScript（Hono）で書く / Goを無料の別ホストで動かす
+- [x] バックエンドの実行環境 → AWS Lambda（関数URL＋LWA）＋ Neon（PostgreSQL）で確定（2026-09-21）
+- [ ] ドメインモデルとDBモデルを1つの構造体で兼ねるか、`*Record` を分けて詰め替えるか
+  - 暫定：兼ねる。テーブルとエンティティが1対1で、値オブジェクトも集約も無いため。`answers.time_slots` だけはJSON変換が要るので `AnswerRecord` を残す
 - [ ] Slackでの回答（ボタン付きメッセージ）をMVPに入れるか、通知だけにするか
 - [ ] 18:00の一時締め切り後に回答・変更を受け付けるか、「一時」締め切りの後に本締め切りがあるか
   - 暫定：受け付けない。`PUT /answers/me` が締切後は 409 を返す。受け付ける方針にするなら409を消すだけでよい
 - [ ] 選択できる時間帯の範囲（例：17:00〜23:00）
   - 暫定：APIは00:00〜23:30の30分刻みをすべて受け付ける。範囲を絞るならクライアント側の選択肢で制限するか、サーバ側のバリデーションを足す
 - [ ] Slackに投稿するタイミングと内容（16:00配信時、18:00締め切り時、回答があるたび など）
-  - APIは未着手。Slack投稿は `PUT /polls/{date}` の副作用にするか、専用エンドポイントを足すかも未決
+  - APIは未着手。Slack投稿は `PUT /admin/polls/today` の副作用にするか、専用エンドポイントを足すかも未決
 - [x] データ設計はセクション7の案でよいか → devices を加えた4テーブルで確定（2026-09-20）
 
 **決定ログ**
@@ -286,4 +341,19 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-20 | userIDだけでログインできる状態を受け入れる | 友人10人の範囲であり、合言葉を足すコストに見合わないため |  |
 | 2026-09-20 | pollの行は `PUT /polls/{date}` のupsertで作り、行がない日は scheduled として返す | 事前seedや作成用エンドポイントを増やさずに3状態を表せるため |  |
 | 2026-09-20 | `devices.device_token` は既存なら紐づけ先を付け替える（upsert） | 同じ端末で別アカウントにログインしたときの一意制約違反と誤配信を防ぐため |  |
+| 2026-09-21 | バックエンドの実行環境は AWS Lambda（関数URL＋Lambda Web Adapter）にする | LWAがAWS固有のイベント形式を吸収するので、ローカルと同じGin・GORMのコードをそのまま動かせるため |  |
+| 2026-09-21 | DBを Cloudflare D1 から Neon（PostgreSQL）に変える | 無料ホストのファイルシステムは揮発するためDBはマネージドに置く必要があり、D1には `database/sql` ドライバが無くGORMを捨てることになるため |  |
+| 2026-09-21 | 定時処理は EventBridge Rule ＋ API Destination から既存の管理用APIを叩く（2026-09-22 に Scheduler へ変更） | LWAのパススルー（`/events`）を入口にすると、鍵のかかっていない入口が増え、`X-Admin-Token` とは別の認証を作ることになるため |  |
+| 2026-09-21 | スキーマは Go の構造体（GORM の AutoMigrate）を正とし、SQLのマイグレーションファイルは持たない | 正を2つに分けるとズレるため。カラム削除やリネームが必要になった時点でマイグレーションツールを入れる |  |
+| 2026-09-21 | AutoMigrate はLambda起動時ではなく `cmd/migrate` から流す | 同時にコールドスタートするとDDLが競合し、毎回の起動も遅くなるため |  |
+| 2026-09-21 | テストは SQLite ではなく Postgres を立てて実行する | 回答のupsert（`ON CONFLICT`）など、本番と同じ方言で検証するため |  |
+| 2026-09-22 | 定時処理は EventBridge Rule から EventBridge Scheduler ＋ イベントバス ＋ API Destination に変える | 定時ルールはレガシーで、AWSは Scheduler を推奨しているため。Scheduler はHTTPSを直接叩けないのでバスを挟む。Lambdaを直接起動する方法は、LWAにHTTPの形のJSONを渡すという公式に案内されていない使い方になるため採らない |  |
+| 2026-09-22 | 定時処理からは日付を受け取らない `PUT /admin/polls/today` を叩き、「今日」はサーバがJSTで決める | Scheduler・ルールのどちらも、URLにJSTの日付を入れられないため（入れられるのはUTCの日時を丸ごとか、固定の文字だけ） |  |
+| 2026-09-22 | 1ユーザーが複数の端末から同時にログインできるようにし、セッションを `sessions` テーブルに分ける | AndroidアプリとPWAなど、1人が複数の端末で使うため。代わりに、なりすまされても元の端末が追い出されなくなることは受け入れる |  |
+| 2026-09-22 | devices をセッションに紐づけ、ログアウトでその端末の devices も消す | ログアウトした端末に通知が届き続けるのを防ぐため。クライアントがログアウト時にFIDを送らずに済む |  |
+| 2026-09-22 | 通知の宛先はFCMの登録トークンではなくFIDで持つ | 登録トークンは2026年に非推奨になり、Go Admin SDK も v4.21.0 で送信先を `Fid` に切り替えたため |  |
+| 2026-09-22 | 通知の宛先はログインAPIに同梱せず、`POST /devices` で起動時・許可直後・変更時に送る | Firebaseの推奨が「起動時と変更時に送る」であり、iPhoneのPWAではログインの時点で通知の許可（＝FID）が無いことが多いため |  |
+| 2026-09-22 | 一斉送信はトピック配信を使わず、DBから引いたFIDに `SendEachForMulticast` で送る | FIDはトピックに登録できず、「未回答者だけ」の絞り込みもトピックではできないため。Firebaseも少人数には個別の宛先への送信を勧めている |  |
+| 2026-09-22 | `os_type` は Android / web にする | iPhoneはネイティブアプリではなくPWAのWebプッシュで通知を受けるため |  |
 | 2026-09-25 | iPhoneのウィジェットはショートカットではなくScriptableで実装する | 無料・登録不要でホーム画面に回答状況を表示でき、個人情報も収集されないため（※2参照） |  |
+
