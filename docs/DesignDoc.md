@@ -102,7 +102,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 
 ※1 Cloudflare Workers は Go（Gin）をそのまま動かせない（WebAssembly経由の限定的なサポートのみ）。「Go を別の無料ホストで動かしD1をREST APIで使う」か「Workers上を TypeScript（Hono）で書く」かを決める必要がある（未決事項）。Cron Triggers の時刻はUTC指定なので、16:00 JST は `0 7 * * *` になる。
 
-※2　iOSウィジェット作成に用いるScriptableは「Your privacy is critcally important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
+※2　iOSウィジェット作成に用いるScriptableは「Your privacy is critically important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
 https://scriptable.app/privacy-policy/
 
 ## 7. アーキテクチャ・データ設計
@@ -197,7 +197,7 @@ Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /
 | メンバー | 担当領域 | 主な機能 | 9/19〜9/23 に使える時間 |
 | --- | --- | --- | --- |
 |  | バックエンドAPI・DB設計・定時処理（Cron） | F1, F2, F3, F8 のAPI、F6 |  |
-|  | Tauriアプリ（登録・回答・結果画面）・配布（PWA / APK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
+|  | Tauri / Reactアプリ（登録・回答・結果画面）・配布（iPhoneはPWA、AndroidはAPK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
 |  | 外部連携（Slack、プッシュ通知）・ウィジェット（Scriptable,Kotlin） | F7, F5, F4（この順に着手） |  |
 
 **開発ルール**
@@ -225,7 +225,7 @@ Apple Developer Program に登録しないため、iPhoneにはネイティブ�
 
 | 方法 | 費用 | 通知 | ウィジェット相当 | 判断 |
 | --- | --- | --- | --- | --- |
-| PWA（Flutter Web を Cloudflare Pages でホストし、ホーム画面に追加） | 無料 | Webプッシュ（iOS 16.4以降、ホーム画面に追加した場合のみ） | ショートカットで代替 | 採用。URLを送るだけで配れ、更新も自動 |
+| PWA（Tauriで共通利用するReactフロントをCloudflare Pagesでホストし、ホーム画面に追加） | 無料 | Webプッシュ（iOS 16.4以降、ホーム画面に追加した場合のみ） | ショートカットで代替 | 採用。URLを送るだけで配れ、更新も自動 |
 | Slack で回答・通知（ボタン付きメッセージ） | 無料 | Slackの通知 | Slackの通知から直接回答 | 採用（リマインドと回答の補助） |
 | 無料のApple IDでXcodeから直接インストール | 無料 | プッシュ通知は不可 | 一部制限あり | 不採用。7日ごとに再インストールが必要で、友人ごとにMacへ接続する手間がある |
 | TestFlight / AdHoc / 非表示アプリ など | 有料登録が必要 | — | — | 不採用 |
@@ -246,7 +246,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | --- | --- | --- |
 | iPhoneのWebプッシュはホーム画面に追加しないと届かず、届かない人も出やすい | リマインドを見逃す | リマインドと結果はSlackでも送る（F5・F7をSlackで兼ねる） |
 | iPhoneではネイティブのウィジェットが作れない | F4がiPhoneで実現できない | F4はAndroidのみ。iPhoneはショートカットウィジェットで代替 |
-| Flutter Web は初回表示が重め | 開くのが面倒で回答率が下がる | 回答画面を最初に表示し、画面数を最小にする |
+| React Web（PWA）は初回表示が重め | 開くのが面倒で回答率が下がる | 回答画面を最初に表示し、画面数を最小にする |
 | Cloudflare Workers で Go（Gin）が動かない | バックエンドの作り直し | 無料で完結させるならWorkers上をTypeScript（Hono）で書くのが最も確実。Goを使う場合は無料で常時動かせるホストを9/19中に探す |
 | 無料枠の上限を超える | サービスが止まる | 10人規模なら Cloudflare・FCM・Slack の無料枠で十分。念のため各サービスで課金設定をしない |
 | 期限まで4日で Must が8個ある | MVPが完成しない | 削る順番を決めておく：F4 → F5 → F7 の順に後回し |
@@ -271,7 +271,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 
 | 日付 | 決定内容 | 理由 | 決めた人 |
 | --- | --- | --- | --- |
-| 2026-09-19 | AndroidフロントエンドのみTauriに変更（iPhoneはFlutter Web PWA継続） | Android側での実装方針を切り替え、iPhoneの配布方針は維持するため |  |
+| 2026-09-19 | フロントエンドをTauri / Reactに変更（iPhoneは同一ReactをPWAとして配布） | AndroidはTauriで実装しつつ、iPhoneは同一フロントをPWAで配布して運用を統一するため |  |
 | 2026-09-19 | DBはCloudflare D1 | 小規模で無料 |  |
 | 2026-09-19 | 認証はメール・パスワードを使わず自前のuserIDのみ | 友人内で手軽に使うため |  |
 | 2026-09-19 | ストア公開・多言語対応はしない | 利用者が友人10人程度のため |  |
