@@ -89,8 +89,8 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 
 | レイヤー | 採用技術 | 選定理由 | 検討した他の候補 |
 | --- | --- | --- | --- |
-| フロントエンド | Flutter | 1つのコードでAndroidアプリとiPhone向けWeb版（PWA）を作れる。学習コストが低い | Tauri / React Native |
-| ウィジェット | Kotlin（Glance）+ home\_widget パッケージ（Androidのみ。iPhoneはショートカットで代替） | Flutterだけではウィジェットを書けないため、各OSのネイティブコードが必要 |  |
+| フロントエンド | Tauri / React | ネイティブアプリとWebアプリを一括で作れるため |  |
+| ウィジェット | Kotlin（Glance）+ Scriptable | Tauri/React だけではウィジェットを書けないため、各OSのネイティブコードが必要、iOSはScriptableで対応 |  |
 | バックエンド / API | Go（Gin） | 高性能でスケーラブルなサーバー開発に適している | Node.js / Python |
 | データベース | Cloudflare D1（SQLite） | 小規模アプリに適していて無料 | AWS RDS / Supabase / Firebase |
 | 認証 | 自前（userID＋セッショントークン） | 簡単なIDで登録・ログインできる。利用者向けはBearerトークン、Cron等の管理用は `X-Admin-Token` に分離 | Firebase / Auth0 / Google Sign-In |
@@ -100,7 +100,10 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | CI/CD | GitHub Actions | GitHubと連携して自動化できる | Jenkins / Travis CI / Argo |
 | 開発ツール | GitHub（Issues / Projects） | コード管理・タスク管理を一元化できる | GitLab / Bitbucket |
 
-注意：Cloudflare Workers は Go（Gin）をそのまま動かせない（WebAssembly経由の限定的なサポートのみ）。「Go を別の無料ホストで動かしD1をREST APIで使う」か「Workers上を TypeScript（Hono）で書く」かを決める必要がある（未決事項）。Cron Triggers の時刻はUTC指定なので、16:00 JST は `0 7 * * *` になる。
+※1 Cloudflare Workers は Go（Gin）をそのまま動かせない（WebAssembly経由の限定的なサポートのみ）。「Go を別の無料ホストで動かしD1をREST APIで使う」か「Workers上を TypeScript（Hono）で書く」かを決める必要がある（未決事項）。Cron Triggers の時刻はUTC指定なので、16:00 JST は `0 7 * * *` になる。
+
+※2　iOSウィジェット作成に用いるScriptableは「Your privacy is critcally important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
+https://scriptable.app/privacy-policy/
 
 ## 7. アーキテクチャ・データ設計
 
@@ -195,7 +198,7 @@ Cronから叩くのは `PUT /polls/{date}`（配信・締め切り）と `POST /
 | --- | --- | --- | --- |
 |  | バックエンドAPI・DB設計・定時処理（Cron） | F1, F2, F3, F8 のAPI、F6 |  |
 |  | Flutterアプリ（登録・回答・結果画面）・配布（PWA / APK） | F1, F2, F3, F8 の画面、iPhone / Android への配布 |  |
-|  | 外部連携（Slack、プッシュ通知）・ウィジェット（Kotlin） | F7, F5, F4（この順に着手） |  |
+|  | 外部連携（Slack、プッシュ通知）・ウィジェット（Scriptable,Kotlin） | F7, F5, F4（この順に着手） |  |
 
 **開発ルール**
 
