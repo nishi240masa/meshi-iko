@@ -100,9 +100,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | CI/CD | GitHub Actions | GitHubと連携して自動化できる | Jenkins / Travis CI / Argo |
 | 開発ツール | GitHub（Issues / Projects） | コード管理・タスク管理を一元化できる | GitLab / Bitbucket |
 
-※1 Cloudflare Workers は Go（Gin）をそのまま動かせない（WebAssembly経由の限定的なサポートのみ）。「Go を別の無料ホストで動かしD1をREST APIで使う」か「Workers上を TypeScript（Hono）で書く」かを決める必要がある（未決事項）。Cron Triggers の時刻はUTC指定なので、16:00 JST は `0 7 * * *` になる。
-
-※2　iOSウィジェット作成に用いるScriptableは「Your privacy is critically important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
+iOSウィジェット作成に用いるScriptableは「Your privacy is critically important to us. Therefore our website and apps does not collect any personally identifiable information or location data.(お客様のプライバシーは当社にとって非常に重要です。そのため、当社のウェブサイトおよびアプリは、個人を特定できる情報や位置情報を一切収集しません。)」なので安心安全！！ご心配なく！！
 https://scriptable.app/privacy-policy/
 
 注意が2つある。API Destination は5秒でタイムアウトし、失敗すると既定で最大24時間・185回まで再送する。401や409も再送の対象なので、設定ミスや逆向きの遷移で叩かれ続けないよう、ルール側の再送を2回・3600秒に絞る。期間を絞るのは、18:00の締め切りが日付をまたいで再送され、翌日分を締め切ってしまうのを防ぐためでもある。Lambdaは同時実行ごとにプロセスが分かれコネクションプールを共有できないため、Neonは pooler エンドポイント（ホスト名に `-pooler` が付く方）を使い、GORM側も接続数を絞る。
