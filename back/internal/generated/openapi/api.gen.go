@@ -244,7 +244,7 @@ type MyAnswer struct {
 
 // Poll defines model for Poll.
 type Poll struct {
-	// ClosedAt 締め切った時刻．締切前は締切予定時刻
+	// ClosedAt 締め切った時刻．締切前は締切予定時刻.
 	ClosedAt time.Time `json:"closedAt"`
 
 	// Date Example: 2026-09-20
