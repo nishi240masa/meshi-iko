@@ -7,6 +7,9 @@ on:
       - "back/**"
       - ".github/workflows/backend.yml"
   pull_request:
+    paths:
+      - "back/**"
+      - ".github/workflows/backend.yml"
 
 permissions:
   contents: read
