@@ -10,8 +10,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM base AS dev
 RUN --mount=type=cache,target=/go/pkg/mod \
-    go install github.com/air-verse/air@v1.62.0 \
-    && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+    go install github.com/air-verse/air@v1.62.0
+
+COPY --from=golangci/golangci-lint:v2.15.0 /usr/bin/golangci-lint /go/bin/golangci-lint
+
 EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
 

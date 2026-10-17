@@ -52,8 +52,13 @@ test:
  ## gofmt と golangci-lint をかける
 .PHONY: lint
 lint:
-	$(COMPOSE) run --rm api sh -c 'test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)'
-	$(COMPOSE) run --rm api golangci-lint run ./...
+	if [ -n "$$($(COMPOSE) ps -q --filter status=running api)" ]; then \
+		$(COMPOSE) exec api sh -c 'test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)' && \
+		$(COMPOSE) exec api golangci-lint run ./... ; \
+	else \
+		$(COMPOSE) run --rm api sh -c 'test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)' && \
+		$(COMPOSE) run --rm api golangci-lint run ./... ; \
+	fi
 
  ## go.mod / go.sum を整理する
 .PHONY: tidy
