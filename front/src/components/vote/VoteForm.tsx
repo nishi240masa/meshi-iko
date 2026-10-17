@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useReducer, useState } from "react";
 
 import { api } from "../../lib/api";
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function VoteForm({ selectableTimes }: Props) {
+  const navigate = useNavigate();
   const [status, setStatus] = useState<"available" | "unavailable" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [state, dispatch] = useReducer(timeSlotReducer, initialTimeSlotState());
@@ -62,6 +64,7 @@ export function VoteForm({ selectableTimes }: Props) {
       }
 
       console.log("Vote response:", data);
+      navigate({ to: "/result" });
     } catch (error) {
       setErrorMessage("投票に失敗しました");
       console.error("Vote request error:", error);
@@ -142,12 +145,7 @@ export function VoteForm({ selectableTimes }: Props) {
         </button>
       )}
       <p>投票結果は後から確認・変更できます</p>
-      <button
-        className={styles.submitButton}
-        type="submit"
-        // 投票可能時間を設定していないか、いくいかないの選択がされていない場合はSubmitボタンを無効化
-        disabled={status === null}
-      >
+      <button className={styles.submitButton} type="submit">
         投票する
       </button>
       {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
