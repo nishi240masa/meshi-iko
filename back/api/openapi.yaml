@@ -535,7 +535,7 @@ components:
 
     Poll:
       type: object
-      required: [date, status]
+      required: [date, status, openedAt, closedAt]
       properties:
         date:
           type: string
@@ -546,13 +546,11 @@ components:
         openedAt:
           type: string
           format: date-time
-          description: 配信した時刻．配信前はnull．
-          nullable: true
+          description: 配信した時刻．配信前は開始予定時刻．
         closedAt:
           type: string
           format: date-time
-          description: 締め切った時刻．締切前はnull．
-          nullable: true
+          description: 締め切った時刻．締切前は締切予定時刻
 
     UpdatePollRequest:
       type: object
