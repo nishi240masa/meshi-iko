@@ -1,0 +1,34 @@
+# pr-review 用のコマンドルール（Codex CLI）。プロジェクトを「信頼済み」にしたときだけ読み込まれる。
+# ルールは「サンドボックスの外で実行してよいか」を決める。forbidden は人間が承認しても実行させない。
+
+# git の書き込み系は、サンドボックス外での実行を一切させない
+prefix_rule(
+    pattern = ["git", ["commit", "push", "add", "merge", "rebase", "reset", "checkout", "switch", "restore", "stash", "tag", "branch", "cherry-pick", "revert", "apply", "am", "clean", "pull", "fetch", "rm", "mv", "worktree", "config", "update-ref", "gc", "prune", "submodule"]],
+    decision = "forbidden",
+    justification = "pr-review は読み取り専用。git status / diff / log / show / blame などの読み取りコマンドを使い、必要な書き込み操作はレポートに書いて人間に依頼すること。",
+    match = ["git push origin main", "git commit -m x", "git fetch origin"],
+    not_match = ["git status", "git diff origin/main...HEAD", "git log --oneline"],
+)
+
+# gh の書き込み系も同様
+prefix_rule(
+    pattern = ["gh", "pr", ["checkout", "merge", "create", "comment", "review", "edit", "close", "reopen", "ready"]],
+    decision = "forbidden",
+    justification = "pr-review は GitHub に書き込まない。gh pr view / diff / checks だけを使うこと。",
+    match = ["gh pr merge 12", "gh pr comment 12 -b hi"],
+    not_match = ["gh pr view 12", "gh pr diff"],
+)
+prefix_rule(
+    pattern = ["gh", "api"],
+    decision = "forbidden",
+    justification = "pr-review では gh api を使わない。gh pr view / diff / checks を使うこと。",
+)
+
+# gh の読み取り系は GitHub への通信が必要なので、サンドボックス外での実行を確認なしで許可する
+prefix_rule(
+    pattern = ["gh", "pr", ["view", "diff", "checks"]],
+    decision = "allow",
+    justification = "PR の情報と差分の取得（読み取りのみ）",
+    match = ["gh pr view --json number,title", "gh pr diff", "gh pr checks"],
+    not_match = ["gh pr merge 12"],
+)
