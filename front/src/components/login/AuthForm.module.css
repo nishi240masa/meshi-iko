@@ -3,11 +3,11 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 10px;
 
   > * {
-    width: 60%;
+    width: 100%;
   }
-  gap: 10px;
 }
 
 .formContainer {

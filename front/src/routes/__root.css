@@ -21,7 +21,18 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
   text-align: center;
+}
+
+.container > * {
+  width: 40%;
+}
+
+@media (max-width: 600px) {
+  .container > * {
+    width: 100%;
+  }
 }
 
 .row {
