@@ -90,7 +90,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | レイヤー | 採用技術 | 選定理由 | 検討した他の候補 |
 | --- | --- | --- | --- |
 | フロントエンド | Tauri / React | ネイティブアプリとWebアプリを一括で作れるため |  |
-| ウィジェット | Kotlin（Glance）+ Scriptable | Tauri/React だけではウィジェットを書けないため、各OSのネイティブコードが必要、iOSはScriptableで対応 |  |
+| ウィジェット | tauri-plugin-widgets（Android）+ Scriptable（iOS） | Tauri 側から JSON でウィジェットのレイアウトを宣言でき、DataStoreへのトークン橋渡しも同プラグインで対応できるため、別途 Kotlin モジュールを書かずに済む。iOS は AppleDeveloper 登録不要の Scriptable で対応する方針を継続 |  |
 | バックエンド / API | Go（Gin） | 高性能でスケーラブルなサーバー開発に適している | Node.js / Python |
 | データベース | Cloudflare D1（SQLite） | 小規模アプリに適していて無料 | AWS RDS / Supabase / Firebase |
 | 認証 | 自前（userID＋セッショントークン） | 簡単なIDで登録・ログインできる。利用者向けはBearerトークン、Cron等の管理用は `X-Admin-Token` に分離 | Firebase / Auth0 / Google Sign-In |
@@ -287,3 +287,4 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-20 | pollの行は `PUT /polls/{date}` のupsertで作り、行がない日は scheduled として返す | 事前seedや作成用エンドポイントを増やさずに3状態を表せるため |  |
 | 2026-09-20 | `devices.device_token` は既存なら紐づけ先を付け替える（upsert） | 同じ端末で別アカウントにログインしたときの一意制約違反と誤配信を防ぐため |  |
 | 2026-09-25 | iPhoneのウィジェットはショートカットではなくScriptableで実装する | 無料・登録不要でホーム画面に回答状況を表示でき、個人情報も収集されないため（※2参照） |  |
+| 2026-10-17 | Android ウィジェットの実装を tauri-plugin-widgetsで行う | JSON DSL でウィジェットをTauri側から制御でき、純Kotlin Glance実装と比べてReact/Tauri開発者が触りやすい。DataStoreブリッジも同プラグインで賄える |  |
