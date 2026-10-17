@@ -1,0 +1,7 @@
+# Codex 専用メタデータ。Claude Code は読まない。
+interface:
+  display_name: "PR Review"
+  short_description: "設計docs準拠を含むPRの読み取り専用レビュー"
+policy:
+  # $pr-review と明示したときだけ動かす（Claude Code の disable-model-invocation: true に相当）
+  allow_implicit_invocation: false
