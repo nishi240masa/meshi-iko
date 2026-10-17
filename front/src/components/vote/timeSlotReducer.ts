@@ -18,6 +18,14 @@ export const initialTimeSlotState = (): TimeSlotState => ({
   slots: [],
 });
 
+function createTimeSlotId(): string {
+  if (typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 // TimeSlotの開始時間と終了時間を管理するためのreducer関数
 export function timeSlotReducer(state: TimeSlotState, action: TimeSlotAction): TimeSlotState {
   switch (action.type) {
@@ -28,7 +36,7 @@ export function timeSlotReducer(state: TimeSlotState, action: TimeSlotAction): T
         slots: [
           ...state.slots,
           {
-            id: crypto.randomUUID(),
+            id: createTimeSlotId(),
             startTime: action.payload.startTime, //初期値は空文字
             endTime: action.payload.endTime,
           },

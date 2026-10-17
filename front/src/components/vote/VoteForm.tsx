@@ -99,11 +99,11 @@ export function VoteForm({ selectableTimes }: Props) {
         </div>
       </div>
       <div className={styles.timeSlotInfo}>
+        <p>参加できる時間帯を選択してください</p>
         <p>
           選択可能な時間帯:<span>{selectableTimes[0]}</span>~
           <span>{selectableTimes[selectableTimes.length - 1]}</span>
         </p>
-        <p>参加できる時間帯を選択してください</p>
       </div>
       <div className={styles.timeSlotContainer}>
         {state.slots.length > 0 && (
@@ -121,6 +121,9 @@ export function VoteForm({ selectableTimes }: Props) {
             ))}
           </div>
         )}
+      </div>
+
+      {status === "available" && (
         <button
           type="button"
           disabled={status !== "available"}
@@ -137,37 +140,17 @@ export function VoteForm({ selectableTimes }: Props) {
         >
           時間帯を追加
         </button>
-      </div>
-
-      <div className={styles.submitContainer}>
-        <div className={styles.buttonGroup}>
-          <button
-            type="button"
-            disabled={status !== "available"}
-            onClick={() =>
-              dispatch({
-                type: "ADD",
-                payload: {
-                  startTime: selectableTimes[0],
-                  endTime: selectableTimes[1] ?? selectableTimes[0],
-                },
-              })
-            }
-          >
-            時間帯を追加
-          </button>
-          <button
-            className={styles.submitButton}
-            type="submit"
-            // 投票可能時間を設定していないか、いくいかないの選択がされていない場合はSubmitボタンを無効化
-            disabled={(state.slots.length === 0 && status === "available") || status === null}
-          >
-            投票する
-          </button>
-        </div>
-        <p>投票結果は後から確認・変更できます</p>
-      </div>
-      {errorMessage && <p className={styles.ErrorMessage}>{errorMessage}</p>}
+      )}
+      <p>投票結果は後から確認・変更できます</p>
+      <button
+        className={styles.submitButton}
+        type="submit"
+        // 投票可能時間を設定していないか、いくいかないの選択がされていない場合はSubmitボタンを無効化
+        disabled={status === null}
+      >
+        投票する
+      </button>
+      {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
     </form>
   );
 }

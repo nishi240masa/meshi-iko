@@ -4,7 +4,9 @@
   align-items: center;
   gap: 3px;
   border: 2px solid gray;
-  padding: 3px 5px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  padding: 10px 8px;
   flex: 1;
 
   > * {
@@ -27,12 +29,16 @@
 .timeSelect {
   border-radius: 8px;
   padding: 3px 5px;
+  flex: 1;
 }
 
 .removeButton {
-  padding: 3px 5px;
+  padding: 0;
   width: fit-content;
   min-width: fit-content;
   font-weight: bold;
-  border: 2px solid gray;
+  border: 2px solid red;
+  background-color: red;
+  color: white;
+  box-sizing: border-box;
 }
