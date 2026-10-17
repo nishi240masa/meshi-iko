@@ -25,7 +25,7 @@ function RouteComponent() {
   // 投票可能時間と投票状態を取得して表示切り替え
 
   return (
-    <div>
+    <div className="container">
       <h1>投票ページ</h1>
       <VoteForm
         selectableTimes={[

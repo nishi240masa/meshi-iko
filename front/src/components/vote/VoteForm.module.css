@@ -1,0 +1,74 @@
+.voteForm {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  > * {
+    width: 60%;
+  }
+  gap: 10px;
+}
+
+.timeSlotInfo {
+  > p {
+    margin: 0;
+  }
+}
+
+.voteStatusContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.radioGroup {
+  display: flex;
+  width: 100%;
+  > .radioItem {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
+.timeSlotContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.errorMessage {
+  margin-top: 3px;
+  text-align: end;
+  color: red;
+}
+
+.submitContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.buttonGroup {
+  display: flex;
+  flex-direction: row;
+
+  > button {
+    height: 40px;
+    flex: 1;
+    width: fit-content;
+    min-width: fit-content;
+    font-weight: bold;
+  }
+}
+
+.submitButton {
+  height: 40px;
+  flex: 1;
+  width: fit-content;
+  min-width: fit-content;
+  font-weight: bold;
+}

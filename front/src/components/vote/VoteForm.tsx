@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { createTimeScale } from "./createTimeScale";
 import { TimeSlotCard } from "./TimeSlotCard";
 import { initialTimeSlotState, timeSlotReducer } from "./timeSlotReducer";
+import styles from "./VoteForm.module.css";
 import { voteFormSchema } from "./VoteSchema";
 
 type Props = {
@@ -45,6 +46,9 @@ export function VoteForm({ selectableTimes }: Props) {
     // 投票結果を送信
     try {
       const { data, error } = await api.PUT("/answers/me", {
+        headers: {
+          Authorization: `Bearer 9f2c1d0b8a7e6f5d4c3b2a1908172635`,
+        },
         body: {
           status: result.data.status,
           timeSlots: slotSplits,
@@ -65,11 +69,10 @@ export function VoteForm({ selectableTimes }: Props) {
   };
 
   return (
-    <form onSubmit={handleVote}>
-      <div>
-        <label htmlFor="vote">いくいかない</label>
-        <div>
-          <div>
+    <form onSubmit={handleVote} className={styles.voteForm}>
+      <div className={styles.voteStatusContainer}>
+        <div className={styles.radioGroup}>
+          <div className={styles.radioItem}>
             <label htmlFor="available">いく</label>
             <input
               type="radio"
@@ -79,66 +82,73 @@ export function VoteForm({ selectableTimes }: Props) {
               onChange={() => setStatus("available")}
             />
           </div>
-          <div>
+          <div className={styles.radioItem}>
             <label htmlFor="unavailable">いかない</label>
             <input
               type="radio"
               name="rsvp"
               id="unavailable"
               value="unavailable"
-              onChange={() => setStatus("unavailable")}
+              onChange={() => {
+                dispatch({ type: "RESET" });
+                setStatus("unavailable");
+              }}
             />
           </div>
         </div>
-      </div>
-      {status === "available" && (
-        <div>
-          <p>時間帯を設定</p>
+        <div className={styles.timeSlotInfo}>
           <p>
-            選択可能な時間帯<span>{selectableTimes[0]}</span>~
+            選択可能な時間帯:<span>{selectableTimes[0]}</span>~
             <span>{selectableTimes[selectableTimes.length - 1]}</span>
           </p>
-          <div>
-            <p>時間帯を追加</p>
-            <button
-              type="button"
-              onClick={() =>
-                dispatch({
-                  type: "ADD",
-                  payload: {
-                    startTime: selectableTimes[0],
-                    endTime: selectableTimes[1] ?? selectableTimes[0],
-                  },
-                })
-              }
-            >
-              追加
-            </button>
-            {state.slots.map((timeSlot, index) => (
-              <div key={timeSlot.id}>
-                <TimeSlotCard
-                  slot={timeSlot}
-                  onChangeTimeSlot={(updatedSlot) =>
-                    dispatch({ type: "UPDATE", payload: { ...updatedSlot } })
-                  }
-                  onRemoveTimeSlot={() =>
-                    dispatch({ type: "REMOVE", payload: { id: timeSlot.id } })
-                  }
-                  number={index + 1}
-                />
-              </div>
-            ))}
-          </div>
+          <p>いく時間帯を選択してください</p>
+        </div>
+      </div>
+      {state.slots.length > 0 && (
+        <div className={styles.timeSlotContainer}>
+          {state.slots.map((timeSlot, index) => (
+            <div key={timeSlot.id}>
+              <TimeSlotCard
+                slot={timeSlot}
+                onChangeTimeSlot={(updatedSlot) =>
+                  dispatch({ type: "UPDATE", payload: { ...updatedSlot } })
+                }
+                onRemoveTimeSlot={() => dispatch({ type: "REMOVE", payload: { id: timeSlot.id } })}
+                number={index + 1}
+              />
+            </div>
+          ))}
         </div>
       )}
-      <button
-        type="submit"
-        // 投票可能時間を設定していないか、いくいかないの選択がされていない場合はSubmitボタンを無効化
-        disabled={(state.slots.length === 0 && status === "available") || status === null}
-      >
-        Submit
-      </button>
-      {errorMessage && <p>{errorMessage}</p>}
+      <div className={styles.submitContainer}>
+        <div className={styles.buttonGroup}>
+          <button
+            type="button"
+            disabled={status !== "available"}
+            onClick={() =>
+              dispatch({
+                type: "ADD",
+                payload: {
+                  startTime: selectableTimes[0],
+                  endTime: selectableTimes[1] ?? selectableTimes[0],
+                },
+              })
+            }
+          >
+            時間帯を追加
+          </button>
+          <button
+            className={styles.submitButton}
+            type="submit"
+            // 投票可能時間を設定していないか、いくいかないの選択がされていない場合はSubmitボタンを無効化
+            disabled={(state.slots.length === 0 && status === "available") || status === null}
+          >
+            投票する
+          </button>
+        </div>
+        <p>投票結果は後から確認・変更できます</p>
+      </div>
+      {errorMessage && <p className={styles.ErrorMessage}>{errorMessage}</p>}
     </form>
   );
 }

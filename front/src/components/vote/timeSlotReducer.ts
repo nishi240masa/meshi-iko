@@ -11,7 +11,8 @@ export type TimeSlotState = {
 export type TimeSlotAction =
   | { type: "ADD"; payload: { startTime: string; endTime: string } }
   | { type: "REMOVE"; payload: { id: string } }
-  | { type: "UPDATE"; payload: TimeSlotData };
+  | { type: "UPDATE"; payload: TimeSlotData }
+  | { type: "RESET" };
 
 export const initialTimeSlotState = (): TimeSlotState => ({
   slots: [],
@@ -47,6 +48,12 @@ export function timeSlotReducer(state: TimeSlotState, action: TimeSlotAction): T
         slots: state.slots.map((slot) =>
           slot.id === action.payload.id ? { ...slot, ...action.payload } : slot,
         ),
+      };
+    // リセット
+    case "RESET":
+      return {
+        ...state,
+        slots: [],
       };
     default:
       throw Error("Unknown action: " + action);
