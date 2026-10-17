@@ -21,6 +21,9 @@
     text-align: left;
     font-size: 18px;
   }
+  .input {
+    border: 2px solid gray;
+  }
 }
 
 .errorMessage {
@@ -44,4 +47,6 @@
   width: fit-content;
   min-width: fit-content;
   font-weight: bold;
+  background-color: gray;
+  color: white;
 }
