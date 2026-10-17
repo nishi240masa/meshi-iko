@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/oapi-codegen/nullable"
-
 	openapi "github.com/nishi240masa/meshi-iko/back/internal/generated/openapi"
 )
 
@@ -22,8 +20,8 @@ func (h *PollHandler) GetPoll(_ context.Context, request openapi.GetPollRequestO
 	return openapi.GetPoll200JSONResponse{
 		Date:     request.Date,
 		Status:   openapi.Open,
-		OpenedAt: nullable.NewNullableWithValue(mockOpenedAt),
-		ClosedAt: nullable.NewNullNullable[time.Time](),
+		OpenedAt: mockOpenedAt,
+		ClosedAt: mockClosedAt,
 	}, nil
 }
 
@@ -35,21 +33,11 @@ func (h *PollHandler) UpdatePoll(_ context.Context, request openapi.UpdatePollRe
 		}}, nil
 	}
 
-	openedAt := nullable.NewNullNullable[time.Time]()
-	closedAt := nullable.NewNullNullable[time.Time]()
-	switch request.Body.Status {
-	case openapi.Open:
-		openedAt = nullable.NewNullableWithValue(mockOpenedAt)
-	case openapi.Closed:
-		openedAt = nullable.NewNullableWithValue(mockOpenedAt)
-		closedAt = nullable.NewNullableWithValue(mockClosedAt)
-	}
-
 	return openapi.UpdatePoll200JSONResponse{
 		Date:     request.Date,
 		Status:   request.Body.Status,
-		OpenedAt: openedAt,
-		ClosedAt: closedAt,
+		OpenedAt: mockOpenedAt,
+		ClosedAt: mockClosedAt,
 	}, nil
 }
 

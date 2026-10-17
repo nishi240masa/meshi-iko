@@ -213,7 +213,7 @@ devices をセッションに紐づけるのは、ログアウトした端末に
 | GET /users/{userId} | Bearer | 指定ユーザーの情報 | — |
 | PUT /answers/me | Bearer | 当日の自分の回答を登録・更新（冪等） | F2, F3 |
 | GET /answers | Bearer | 指定日（省略時は今日）の全員の回答 | F8 |
-| GET /polls/{date} | Bearer | その日が配信前 / 受付中 / 締切のどれか | F6 |
+| GET /polls/{date} | Bearer | その日が配信前 / 受付中 / 締切のどれか・時間 | F6 |
 | PUT /polls/{date} | Admin | 指定日の配信・締め切りの切り替え（手動で直すとき用） | F6 |
 | PUT /admin/polls/today | Admin | 今日の配信・締め切りの切り替え（Schedulerから） | F6 |
 | POST /devices | Bearer | 通知の宛先（FID）をいまのセッションに紐づけて登録・更新 | F5 |
