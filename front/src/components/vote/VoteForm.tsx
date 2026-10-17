@@ -37,10 +37,16 @@ export function VoteForm({ selectableTimes }: Props) {
     setErrorMessage(null); // バリデーションエラーがない場合はエラーメッセージをクリア
 
     // 各スロットの開始時間と終了時間を30分単位で分割して配列に格納
+    // 重複は排除する
+    // 例: 16:00~17:00, 17:00~18:00 の場合、["16:00", "16:30", "17:00", "17:30","18:00"] のように分割
     // すべてのスロットの一次元の配列に結合
     const slotSplits: string[] =
       status === "available"
-        ? state.slots.map((slot) => createTimeScale(slot.startTime, slot.endTime)).flat()
+        ? Array.from(
+            new Set(
+              state.slots.map((slot) => createTimeScale(slot.startTime, slot.endTime)).flat(),
+            ),
+          )
         : [];
 
     console.log(slotSplits);
