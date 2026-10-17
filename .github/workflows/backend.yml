@@ -3,6 +3,9 @@ name: backend
 on:
   push:
     branches: [main]
+    paths:
+      - "back/**"
+      - ".github/workflows/backend.yml"
   pull_request:
 
 permissions:
