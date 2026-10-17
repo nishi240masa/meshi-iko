@@ -51,7 +51,7 @@
   }
 
   .radioItem:has(input[type="radio"]:checked) {
-    accent-color: orange;
+    accent-color: var(--color-primary);
     font-weight: 900;
     border: 2px solid black;
   }
@@ -75,9 +75,9 @@
   width: fit-content;
   min-width: fit-content;
   font-weight: bold;
-  color: #ffa500;
+  color: var(--color-primary);
   background-color: white;
-  border: 2px solid #ffa500;
+  border: 2px solid var(--color-primary);
 }
 
 .errorMessage {
@@ -86,7 +86,7 @@
 }
 
 .submitButton {
-  background-color: #ffa500;
+  background-color: var(--color-primary);
   color: white;
   width: fit-content;
   min-width: fit-content;
