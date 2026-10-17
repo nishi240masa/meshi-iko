@@ -303,6 +303,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 期限まで4日で Must が8個ある | MVPが完成しない | 削る順番を決めておく：F4 → F5 → F7 の順に後回し |
 | userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。複数端末でのログインを許すため、乗っ取られても元の端末は追い出されず、本人は気づきにくい |
 | 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}`・`PUT /admin/polls/today`・`POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
+|ユーザーは予定時刻を知りたいの|回答者がアンケートの配信・締め切りの予定時刻を知りたい|`openedAt` / `closedAt` は遷移後は実績、遷移前は予定という意味|
 
 参考：[iOS アプリの配布方法（Zenn）](https://zenn.dev/yusuga/articles/9e9b632e0338b2)、[日本におけるiOSの変更（Apple Developer）](https://developer.apple.com/jp/support/app-distribution-in-japan/)
 
@@ -310,7 +311,7 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 
 - [x] バックエンドの実行環境 → AWS Lambda（関数URL＋LWA）＋ Neon（PostgreSQL）で確定（2026-09-21）
 - [ ] ドメインモデルとDBモデルを1つの構造体で兼ねるか、`*Record` を分けて詰め替えるか
-  - 暫定：兼ねる。テーブルとエンティティが1対1で、値オブジェクトも集約も無いため。`answers.time_slots` だけはJSON変換が要るので `AnswerRecord` を残す
+  - 暫定：兼ねる。テーブルとエンティティが1対1で、値オブジェクトも集約も無いため。`answers.time_slots` だけはJSON変換が要なので `AnswerRecord` を残す
 - [ ] Slackでの回答（ボタン付きメッセージ）をMVPに入れるか、通知だけにするか
 - [ ] 18:00の一時締め切り後に回答・変更を受け付けるか、「一時」締め切りの後に本締め切りがあるか
   - 暫定：受け付けない。`PUT /answers/me` が締切後は 409 を返す。受け付ける方針にするなら409を消すだけでよい

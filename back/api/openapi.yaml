@@ -249,7 +249,7 @@ paths:
         クライアントは回答フォームを出すかどうかの判定に使う．
 
         まだ一度も遷移していない日（16:00前など，pollの行がない日）は
-        status=scheduled，openedAt・closedAt=null を返す．
+        status=scheduled，openedAt・closedAt(予定時間) を返す．
         日付として妥当なら必ず200を返すので，「まだpollがない」ことによる404はない．
       operationId: getPoll
       security:
