@@ -45,7 +45,7 @@
       "Bash(go generate *)",
       "Bash(go mod tidy *)",
       "Read(./.env)",
-      "Read(**/.env)",
+      "Read(**/.env)"
     ]
   },
   "hooks": {
