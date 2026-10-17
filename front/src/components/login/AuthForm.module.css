@@ -3,11 +3,11 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 10px;
 
   > * {
-    width: 60%;
+    width: 100%;
   }
-  gap: 10px;
 }
 
 .formContainer {
@@ -20,6 +20,9 @@
   .label {
     text-align: left;
     font-size: 18px;
+  }
+  .input {
+    border: 2px solid gray;
   }
 }
 
@@ -44,4 +47,6 @@
   width: fit-content;
   min-width: fit-content;
   font-weight: bold;
+  background-color: gray;
+  color: white;
 }

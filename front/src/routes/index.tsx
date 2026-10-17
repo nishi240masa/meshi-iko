@@ -1,5 +1,3 @@
-import "./__root.css";
-
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { Greet } from "../components/Greet";
