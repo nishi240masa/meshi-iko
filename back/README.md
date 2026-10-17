@@ -77,7 +77,7 @@ make down       # 停止
 make clean      # 停止してDBのボリュームも削除
 make logs       # APIのログを追う
 make test       # テスト
-make lint       # gofmt + golangci-lint 
+make lint       # gofmt + golangci-lint
 make generate   # openapi.yaml から Go のコードを再生成
 make sh         # 開発コンテナのシェルに入る
 make prod       # 本番相当（ビルド済みバイナリ）で起動
