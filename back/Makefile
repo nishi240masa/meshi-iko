@@ -52,6 +52,10 @@ test:
  ## gofmt と golangci-lint をかける
 .PHONY: lint
 lint:
+	if [ -z "$$(docker ps -q -f name=back_api_1)" ]; then \
+		$(COMPOSE) run --rm api sh -c 'test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)'
+		$(COMPOSE) run --rm api golangci-lint run ./...
+	fi	
 	$(COMPOSE) exec api sh -c 'test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)'
 	$(COMPOSE) exec api golangci-lint run ./...
 
