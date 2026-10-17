@@ -5,5 +5,9 @@ export const Route = createFileRoute("/result")({
 });
 
 function ResultPage() {
-  return <div className="container">投票結果を表示するページです</div>;
+  return (
+    <div className="container">
+      <h1>結果確認ページ</h1>
+    </div>
+  );
 }
