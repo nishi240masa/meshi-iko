@@ -71,9 +71,9 @@ export function VoteForm({ selectableTimes }: Props) {
   return (
     <form onSubmit={handleVote} className={styles.voteForm}>
       <div className={styles.voteStatusContainer}>
+        <p>本日の投票</p>
         <div className={styles.radioGroup}>
           <div className={styles.radioItem}>
-            <label htmlFor="available">いく</label>
             <input
               type="radio"
               name="rsvp"
@@ -81,9 +81,9 @@ export function VoteForm({ selectableTimes }: Props) {
               value="available"
               onChange={() => setStatus("available")}
             />
+            <label htmlFor="available">いく</label>
           </div>
           <div className={styles.radioItem}>
-            <label htmlFor="unavailable">いかない</label>
             <input
               type="radio"
               name="rsvp"
@@ -94,21 +94,23 @@ export function VoteForm({ selectableTimes }: Props) {
                 setStatus("unavailable");
               }}
             />
+            <label htmlFor="unavailable">いかない</label>
           </div>
         </div>
-        <div className={styles.timeSlotInfo}>
-          <p>
-            選択可能な時間帯:<span>{selectableTimes[0]}</span>~
-            <span>{selectableTimes[selectableTimes.length - 1]}</span>
-          </p>
-          <p>いく時間帯を選択してください</p>
-        </div>
       </div>
-      {state.slots.length > 0 && (
-        <div className={styles.timeSlotContainer}>
-          {state.slots.map((timeSlot, index) => (
-            <div key={timeSlot.id}>
+      <div className={styles.timeSlotInfo}>
+        <p>
+          選択可能な時間帯:<span>{selectableTimes[0]}</span>~
+          <span>{selectableTimes[selectableTimes.length - 1]}</span>
+        </p>
+        <p>参加できる時間帯を選択してください</p>
+      </div>
+      <div className={styles.timeSlotContainer}>
+        {state.slots.length > 0 && (
+          <div className={styles.timeSlotList}>
+            {state.slots.map((timeSlot, index) => (
               <TimeSlotCard
+                key={timeSlot.id}
                 slot={timeSlot}
                 onChangeTimeSlot={(updatedSlot) =>
                   dispatch({ type: "UPDATE", payload: { ...updatedSlot } })
@@ -116,10 +118,27 @@ export function VoteForm({ selectableTimes }: Props) {
                 onRemoveTimeSlot={() => dispatch({ type: "REMOVE", payload: { id: timeSlot.id } })}
                 number={index + 1}
               />
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          disabled={status !== "available"}
+          className={styles.addButton}
+          onClick={() =>
+            dispatch({
+              type: "ADD",
+              payload: {
+                startTime: selectableTimes[0],
+                endTime: selectableTimes[1] ?? selectableTimes[0],
+              },
+            })
+          }
+        >
+          時間帯を追加
+        </button>
+      </div>
+
       <div className={styles.submitContainer}>
         <div className={styles.buttonGroup}>
           <button

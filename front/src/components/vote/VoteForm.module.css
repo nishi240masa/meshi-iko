@@ -11,6 +11,7 @@
 }
 
 .timeSlotInfo {
+  text-align: left;
   > p {
     margin: 0;
   }
@@ -19,25 +20,49 @@
 .voteStatusContainer {
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
 .radioGroup {
   display: flex;
   width: 100%;
+  gap: 10px;
   > .radioItem {
     flex: 1;
     display: flex;
     justify-content: center;
     align-items: center;
+    border: 2px solid gray;
+    border-radius: 8px;
+    padding: 4px;
+
+    > label {
+      flex: 1;
+    }
+    > input {
+      /* input[type="radio"]のマージンを消す */
+      margin: 0;
+    }
   }
 }
 
 .timeSlotContainer {
   display: flex;
   flex-direction: column;
-  align-items: center;
+}
+
+.timeSlotList {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: center;
+  gap: 10px;
+}
+
+.addButton {
+  width: fit-content;
+  min-width: fit-content;
+  font-weight: bold;
+  border: 2px solid gray;
 }
 
 .errorMessage {
@@ -55,6 +80,7 @@
 .buttonGroup {
   display: flex;
   flex-direction: row;
+  gap: 10px;
 
   > button {
     height: 40px;
@@ -62,6 +88,8 @@
     width: fit-content;
     min-width: fit-content;
     font-weight: bold;
+    background-color: gray;
+    color: white;
   }
 }
 
