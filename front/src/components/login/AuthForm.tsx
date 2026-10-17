@@ -72,7 +72,7 @@ export function AuthForm() {
           <label htmlFor="name" className={styles.label}>
             name
           </label>
-          <input type="text" name="name" id="name" className={styles.input} />
+          <input type="text" name="name" id="name" className={styles.input} autoComplete="name" />
         </div>
         {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
       </div>
