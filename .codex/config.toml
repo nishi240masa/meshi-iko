@@ -1,0 +1,4 @@
+# pr-review 用のプロジェクト設定（Codex CLI）。
+# プロジェクトを「信頼済み」にしたときだけ読み込まれる。CLI フラグはこの設定より優先される。
+sandbox_mode = "read-only"
+approval_policy = "on-request"

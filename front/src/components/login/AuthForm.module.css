@@ -1,0 +1,47 @@
+.loginForm {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  > * {
+    width: 60%;
+  }
+  gap: 10px;
+}
+
+.formContainer {
+  min-width: 300px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  .label {
+    text-align: left;
+    font-size: 18px;
+  }
+}
+
+.errorMessage {
+  margin-top: 3px;
+  text-align: end;
+  color: red;
+}
+
+.buttonContainer {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.2;
+}
+
+.submitButton {
+  height: 40px;
+  flex: 1;
+  width: fit-content;
+  min-width: fit-content;
+  font-weight: bold;
+}

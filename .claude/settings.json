@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "plan",
+    "deny": [
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git restore *)",
+      "Bash(git stash *)",
+      "Bash(git tag *)",
+      "Bash(git branch *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git revert *)",
+      "Bash(git apply *)",
+      "Bash(git am *)",
+      "Bash(git clean *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)",
+      "Bash(git rm *)",
+      "Bash(git mv *)",
+      "Bash(git worktree *)",
+      "Bash(git config *)",
+      "Bash(git update-ref *)",
+      "Bash(gh pr checkout *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr review *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr close *)",
+      "Bash(gh api *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm add *)",
+      "Bash(npm install *)",
+      "Bash(go get *)",
+      "Bash(go generate *)",
+      "Bash(go mod tidy *)",
+      "Read(./.env)",
+      "Read(**/.env)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-git-write.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
