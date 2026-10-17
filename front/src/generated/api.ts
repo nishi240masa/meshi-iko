@@ -185,7 +185,7 @@ export interface paths {
          *     クライアントは回答フォームを出すかどうかの判定に使う．
          *
          *     まだ一度も遷移していない日（16:00前など，pollの行がない日）は
-         *     status=scheduled，openedAt・closedAt=null を返す．
+         *     status=scheduled，openedAt・closedAt（予定時間）を返す．
          *     日付として妥当なら必ず200を返すので，「まだpollがない」ことによる404はない．
          */
         get: operations["getPoll"];
@@ -352,14 +352,14 @@ export interface components {
             status: components["schemas"]["PollStatus"];
             /**
              * Format: date-time
-             * @description 配信した時刻．配信前はnull．
+             * @description 配信した時刻．配信前は開始予定時刻．
              */
-            openedAt?: string | null;
+            openedAt: string;
             /**
              * Format: date-time
-             * @description 締め切った時刻．締切前はnull．
+             * @description 締め切った時刻．締切前は締切予定時刻．
              */
-            closedAt?: string | null;
+            closedAt: string;
         };
         /**
          * @description 遷移先の状態．scheduled → open → closed の一方向のみ有効で，
