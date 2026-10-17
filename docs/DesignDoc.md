@@ -90,7 +90,7 @@ API の詳細な仕様は `back/api/openapi.yaml` が正（Single Source of Trut
 | レイヤー | 採用技術 | 選定理由 | 検討した他の候補 |
 | --- | --- | --- | --- |
 | フロントエンド | Tauri / React | ネイティブアプリとWebアプリを一括で作れるため |  |
-| ウィジェット | Kotlin（Glance）+ Scriptable | Tauri/React だけではウィジェットを書けないため、各OSのネイティブコードが必要、iOSはScriptableで対応 |  |
+| ウィジェット | tauri-plugin-widgets（Android）+ Scriptable（iOS） | Tauri 側から JSON でウィジェットのレイアウトを宣言でき、DataStoreへのトークン橋渡しも同プラグインで対応できるため、別途 Kotlin モジュールを書かずに済む。iOS は AppleDeveloper 登録不要の Scriptable で対応する方針を継続 |  |
 | バックエンド / API | Go（Gin） | 高性能でスケーラブルなサーバー開発に適している | Node.js / Python |
 | データベース | Neon（PostgreSQL） | サーバーレスのマネージドPostgreSQL。無料枠（ストレージ0.5GB・月100CU時間）で10人規模なら十分に足りる。`database/sql` がそのまま使えるのでGORMを変えずに済む | Cloudflare D1 / Turso / Supabase / AWS RDS |
 | 認証 | 自前（userID＋セッショントークン） | 簡単なIDで登録・ログインできる。利用者向けはBearerトークン、Cron等の管理用は `X-Admin-Token` に分離 | Firebase / Auth0 / Google Sign-In |
@@ -354,4 +354,4 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-22 | 一斉送信はトピック配信を使わず、DBから引いたFIDに `SendEachForMulticast` で送る | FIDはトピックに登録できず、「未回答者だけ」の絞り込みもトピックではできないため。Firebaseも少人数には個別の宛先への送信を勧めている |  |
 | 2026-09-22 | `os_type` は Android / web にする | iPhoneはネイティブアプリではなくPWAのWebプッシュで通知を受けるため |  |
 | 2026-09-25 | iPhoneのウィジェットはショートカットではなくScriptableで実装する | 無料・登録不要でホーム画面に回答状況を表示でき、個人情報も収集されないため（※2参照） |  |
-
+| 2026-10-17 | Android ウィジェットの実装を tauri-plugin-widgetsで行う | JSON DSL でウィジェットをTauri側から制御でき、純Kotlin Glance実装と比べてReact/Tauri開発者が触りやすい。DataStoreブリッジも同プラグインで賄える |  |
