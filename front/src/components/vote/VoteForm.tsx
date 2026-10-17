@@ -54,9 +54,6 @@ export function VoteForm({ selectableTimes }: Props) {
     // 投票結果を送信
     try {
       const { data, error } = await api.PUT("/answers/me", {
-        headers: {
-          Authorization: `Bearer 9f2c1d0b8a7e6f5d4c3b2a1908172635`,
-        },
         body: {
           status: result.data.status,
           timeSlots: slotSplits,

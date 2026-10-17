@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { api } from "../../lib/api";
+import { tokenStore } from "../../lib/tokenStore";
 import styles from "./AuthForm.module.css";
 import { AuthSchema } from "./AuthSchema";
 
@@ -36,8 +37,8 @@ export function AuthForm() {
           console.error("Register error:", error);
           return;
         }
-        console.log("Register response:", data);
         // 新規登録成功時はログインページに遷移
+        tokenStore.set(data.token);
         navigate({ to: "/login" });
       } catch (error) {
         setErrorMessage("新規登録に失敗しました");
@@ -57,8 +58,8 @@ export function AuthForm() {
         return;
       }
 
-      console.log("Login response:", data);
       //ログイン成功時は投票ページに遷移
+      tokenStore.set(data.token);
       navigate({ to: "/vote" });
     } catch (error) {
       setErrorMessage("ログインに失敗しました");
