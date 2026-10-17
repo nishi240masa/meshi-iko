@@ -1,6 +1,5 @@
 import { useId } from "react";
 
-import { createTimeScale } from "./createTimeScale";
 import styles from "./TimeSlotCard.module.css";
 import { TimeSlotData } from "./timeSlotReducer";
 
@@ -8,17 +7,23 @@ type Props = {
   slot: TimeSlotData;
   onChangeTimeSlot: (slot: TimeSlotData) => void;
   onRemoveTimeSlot: (slotId: string) => void;
+  selectableTimes: string[];
 
-  number: number;
+  slotNumber: number;
 };
 
-export function TimeSlotCard({ slot, onChangeTimeSlot, onRemoveTimeSlot, number }: Props) {
+export function TimeSlotCard({
+  slot,
+  onChangeTimeSlot,
+  onRemoveTimeSlot,
+  slotNumber,
+  selectableTimes,
+}: Props) {
   const id = useId(); // 複数のTimeSlotコンポーネントがある場合に、input要素のidが重複しないようにするためにuseIdを使用
-  const selectableTimeRange = createTimeScale("16:00", "21:00"); // 選択可能な時間帯の範囲を作成
 
   return (
     <div className={styles.timeSlotCard}>
-      <p>時間帯{number}</p>
+      <p>時間帯{slotNumber}</p>
       <label htmlFor={`${id}-startTime`} className={styles.visuallyHidden}>
         開始時間
       </label>
@@ -29,10 +34,10 @@ export function TimeSlotCard({ slot, onChangeTimeSlot, onRemoveTimeSlot, number 
         className={styles.timeSelect}
         onChange={(e) => onChangeTimeSlot({ ...slot, startTime: e.target.value })}
       >
-        {selectableTimeRange.map((range) => {
+        {selectableTimes.map((time) => {
           return (
-            <option key={range} value={range}>
-              {range}
+            <option key={time} value={time}>
+              {time}
             </option>
           );
         })}
@@ -48,10 +53,10 @@ export function TimeSlotCard({ slot, onChangeTimeSlot, onRemoveTimeSlot, number 
         className={styles.timeSelect}
         onChange={(e) => onChangeTimeSlot({ ...slot, endTime: e.target.value })}
       >
-        {selectableTimeRange.map((range) => {
+        {selectableTimes.map((time) => {
           return (
-            <option key={range} value={range}>
-              {range}
+            <option key={time} value={time}>
+              {time}
             </option>
           );
         })}

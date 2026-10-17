@@ -121,11 +121,12 @@ export function VoteForm({ selectableTimes }: Props) {
               <TimeSlotCard
                 key={timeSlot.id}
                 slot={timeSlot}
+                selectableTimes={selectableTimes}
                 onChangeTimeSlot={(updatedSlot) =>
                   dispatch({ type: "UPDATE", payload: { ...updatedSlot } })
                 }
                 onRemoveTimeSlot={() => dispatch({ type: "REMOVE", payload: { id: timeSlot.id } })}
-                number={index + 1}
+                slotNumber={index + 1}
               />
             ))}
           </div>
