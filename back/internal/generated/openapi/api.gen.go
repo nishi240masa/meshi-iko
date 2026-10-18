@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/oapi-codegen/nullable"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -245,14 +244,14 @@ type MyAnswer struct {
 
 // Poll defines model for Poll.
 type Poll struct {
-	// ClosedAt 締め切った時刻．締切前はnull．
-	ClosedAt nullable.Nullable[time.Time] `json:"closedAt,omitempty"`
+	// ClosedAt 締め切った時刻．締切前は締切予定時刻．
+	ClosedAt time.Time `json:"closedAt"`
 
 	// Date Example: 2026-09-20
 	Date openapi_types.Date `json:"date"`
 
-	// OpenedAt 配信した時刻．配信前はnull．
-	OpenedAt nullable.Nullable[time.Time] `json:"openedAt,omitempty"`
+	// OpenedAt 配信した時刻．配信前は開始予定時刻．
+	OpenedAt time.Time `json:"openedAt"`
 
 	// Status アンケートの状態．
 	// scheduled=配信前 / open=受付中 / closed=締切．

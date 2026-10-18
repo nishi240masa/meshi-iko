@@ -213,7 +213,7 @@ devices をセッションに紐づけるのは、ログアウトした端末に
 | GET /users/{userId} | Bearer | 指定ユーザーの情報 | — |
 | PUT /answers/me | Bearer | 当日の自分の回答を登録・更新（冪等） | F2, F3 |
 | GET /answers | Bearer | 指定日（省略時は今日）の全員の回答 | F8 |
-| GET /polls/{date} | Bearer | その日が配信前 / 受付中 / 締切のどれか | F6 |
+| GET /polls/{date} | Bearer | その日が配信前 / 受付中 / 締切のどれか・時間 | F6 |
 | PUT /polls/{date} | Admin | 指定日の配信・締め切りの切り替え（手動で直すとき用） | F6 |
 | PUT /admin/polls/today | Admin | 今日の配信・締め切りの切り替え（Schedulerから） | F6 |
 | POST /devices | Bearer | 通知の宛先（FID）をいまのセッションに紐づけて登録・更新 | F5 |
@@ -303,7 +303,6 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 期限まで4日で Must が8個ある | MVPが完成しない | 削る順番を決めておく：F4 → F5 → F7 の順に後回し |
 | userIDだけのログインでなりすましできる | 他人の回答を書き換えられる | 受け入れる。`POST /users/login` はuserIDだけでトークンを発行するため、名前を知っていれば他人になりすませる。友人10人の範囲なのでこれ以上はやらない。複数端末でのログインを許すため、乗っ取られても元の端末は追い出されず、本人は気づきにくい |
 | 管理用APIが誰でも叩ける | 全員に無関係な通知が飛ぶ、締め切り状態を勝手に操作される | `PUT /polls/{date}`・`PUT /admin/polls/today`・`POST /admin/notifications` は `X-Admin-Token` で認証する。値は環境変数で渡し、リポジトリには置かない |
-
 参考：[iOS アプリの配布方法（Zenn）](https://zenn.dev/yusuga/articles/9e9b632e0338b2)、[日本におけるiOSの変更（Apple Developer）](https://developer.apple.com/jp/support/app-distribution-in-japan/)
 
 **未決事項**
@@ -354,4 +353,5 @@ Androidは APK を GitHub Releases などで配れば、無料でネイティブ
 | 2026-09-22 | 一斉送信はトピック配信を使わず、DBから引いたFIDに `SendEachForMulticast` で送る | FIDはトピックに登録できず、「未回答者だけ」の絞り込みもトピックではできないため。Firebaseも少人数には個別の宛先への送信を勧めている |  |
 | 2026-09-22 | `os_type` は Android / web にする | iPhoneはネイティブアプリではなくPWAのWebプッシュで通知を受けるため |  |
 | 2026-09-25 | iPhoneのウィジェットはショートカットではなくScriptableで実装する | 無料・登録不要でホーム画面に回答状況を表示でき、個人情報も収集されないため（※2参照） |  |
+| 2026-10-17 |`openedAt` / `closedAt` は遷移後は実績、遷移前は予定という意味にし，必ず時間が得られるようにする|回答者がアンケートの配信・締め切りの予定時刻を知りたい||
 | 2026-10-17 | Android ウィジェットの実装を tauri-plugin-widgetsで行う | JSON DSL でウィジェットをTauri側から制御でき、純Kotlin Glance実装と比べてReact/Tauri開発者が触りやすい。DataStoreブリッジも同プラグインで賄える |  |
